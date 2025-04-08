@@ -1,0 +1,10 @@
+[package]
+name = "hlskit"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+futures = { version = "0.3.31", features = ["futures-executor", "thread-pool"] }
+tempdir = "0.3.7"
+thiserror = "2.0.11"
+tokio = { version = "1.43.0", features = ["process", "io-util"] }

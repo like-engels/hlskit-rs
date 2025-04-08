@@ -1,0 +1,48 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "pre-debug tasks",
+			"dependsOn": [
+				"cargo build (example)",
+				"cargo build (hlskit-rs)"
+			],
+			"dependsOrder": "sequence",
+			"problemMatcher": []
+		},
+		{
+			"label": "cargo build (example)",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"build",
+				"--manifest-path",
+				"example/Cargo.toml"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": [
+				"$rustc"
+			]
+		},
+		{
+			"label": "cargo build (hlskit-rs)",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"build",
+				"--manifest-path",
+				"hlskit-rs/Cargo.toml"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": [
+				"$rustc"
+			]
+		}
+	]
+}
