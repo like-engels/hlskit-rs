@@ -1,3 +1,5 @@
+use std::fs;
+
 use futures::future::try_join_all;
 use models::{
     hls_video::{HlsVideo, HlsVideoResolution},
@@ -53,6 +55,8 @@ pub async fn process_video(
         master_m3u8_data,
         resolutions: resolution_results,
     };
+
+    fs::remove_dir_all(output_dir)?;
 
     Ok(hls_video)
 }
