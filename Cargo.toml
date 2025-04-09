@@ -1,0 +1,13 @@
+[workspace]
+resolver = "3"
+members = ["hlskit-rs"]
+
+[workspace.package]
+authors = ["Engels <higashikataengels@icloud.com>"]
+edition = "2024"
+license = "AGPL-3.0-or-later"
+documentation = "https://github.com/like-engels/hlskit-rs"
+homepage = "https://github.com/like-engels/hlskit-rs"
+repository = "https://github.com/like-engels/hlskit-rs"
+rust-version = "1.85"
+readme = "README.md"

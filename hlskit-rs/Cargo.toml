@@ -2,9 +2,40 @@
 name = "hlskit"
 version = "0.1.0"
 edition = "2021"
+authors.workspace = true
+license.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+description = "HlsKit provides strong HLS video conversion features backed by ffmpeg. Prepare your mp4 files for streaming"
+keywords = [
+	"http",
+	"web",
+	"hls",
+	"mp4",
+	"ffmpeg",
+	"multimedia",
+	"video-conversion",
+	"streaming",
+	"adaptive-streaming",
+	"video-processing",
+	"transcoding",
+	"async",
+]
+categories = [
+	"network-programming",
+	"asynchronous",
+	"compression",
+	"multimedia",
+	"multimedia::encoding",
+	"multimedia::video",
+	"multimedia::audio",
+]
 
 [dependencies]
 futures = { version = "0.3.31", features = ["futures-executor", "thread-pool"] }
-tempdir = "0.3.7"
+tempfile = "3.19.1"
 thiserror = "2.0.12"
 tokio = { version = "1.44.2", features = ["process", "io-util"] }

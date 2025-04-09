@@ -6,7 +6,7 @@ use models::{
     hls_video_processing_settings::HlsVideoProcessingSettings,
 };
 use services::hls_video_processing_service::process_video_profile;
-use tempdir::TempDir;
+use tempfile::TempDir;
 use tools::{hlskit_error::HlsKitError, m3u8_tools::generate_master_playlist};
 
 pub mod models;
@@ -17,7 +17,7 @@ pub async fn process_video(
     input_bytes: Vec<u8>,
     output_profiles: Vec<HlsVideoProcessingSettings>,
 ) -> Result<HlsVideo, HlsKitError> {
-    let output_dir = TempDir::new("hlskit")?.into_path();
+    let output_dir = TempDir::new()?.into_path();
 
     println!("processing video at: {}", &output_dir.display());
 
