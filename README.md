@@ -210,6 +210,6 @@ hlskit = { git = "https://github.com/like-engels/hlskit-rs" }
 
 ## 🪪 License
 
-AGPL-3
+HlsKit is licensed under LGPLv3. By modifying or distributing it (e.g., via forks or extensions), you agree to the HlsKit Contributor License Agreement (CLA), which ensures our ecosystem thrives.
 
----
+The 'HlsKit' name and logo are trademarks of Engels Tercero. Use in forks or derivatives requires written permission.

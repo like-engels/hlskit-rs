@@ -1,0 +1,79 @@
+name: HlsKit Deploy
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types:
+      - published
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          workspaces: "hlskit-rs"
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+        working-directory: hlskit-rs
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+        working-directory: hlskit-rs
+
+      - name: Build
+        run: cargo build --verbose
+        working-directory: hlskit-rs
+
+      - name: Run tests
+        run: cargo test --verbose
+        working-directory: hlskit-rs
+
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'release' && github.event.action == 'published'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          workspaces: "hlskit-rs"
+
+      - name: Verify crate metadata
+        run: cargo package --list --allow-dirty
+        working-directory: hlskit-rs
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish
+        working-directory: hlskit-rs
