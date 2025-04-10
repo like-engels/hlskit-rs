@@ -1,13 +1,13 @@
 use std::{
     fs::File,
     io::{Read, Write},
-    path::PathBuf,
+    path::Path,
 };
 
 use super::hlskit_error::HlsKitError;
 
 pub async fn generate_master_playlist(
-    output_dir: &PathBuf,
+    output_dir: &Path,
     resolutions: Vec<(i32, i32)>,
     playlist_filenames: Vec<&str>,
 ) -> Result<Vec<u8>, HlsKitError> {
