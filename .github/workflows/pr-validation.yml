@@ -1,0 +1,44 @@
+name: HlsKit PR Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          workspaces: "hlskit-rs"
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+        working-directory: hlskit-rs
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+        working-directory: hlskit-rs
+
+      - name: Build
+        run: cargo build --verbose
+        working-directory: hlskit-rs
+
+      - name: Run tests
+        run: cargo test --verbose
+        working-directory: hlskit-rs
