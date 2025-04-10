@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::process::Command;
 
@@ -15,7 +15,7 @@ pub async fn process_video_profile(
     resolution: (i32, i32),
     crf: i32,
     preset: &str,
-    output_dir: &PathBuf,
+    output_dir: &Path,
     stream_index: i32,
 ) -> Result<HlsVideoResolution, HlsKitError> {
     let (width, height) = resolution;
