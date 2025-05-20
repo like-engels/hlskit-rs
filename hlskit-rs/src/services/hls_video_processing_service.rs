@@ -1,7 +1,8 @@
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use tempfile::NamedTempFile;
 use tokio::process::Command;
 
 use crate::models::hls_video::HlsVideoSegment;
@@ -30,6 +31,12 @@ pub async fn process_video_profile(
         stream_index
     );
 
+    let mut temp_file = NamedTempFile::new()?;
+
+    temp_file.write_all(&input_bytes)?;
+
+    let input_path = temp_file.path().to_str().unwrap();
+
     let command = build_simple_hls(
         width,
         height,
@@ -38,10 +45,11 @@ pub async fn process_video_profile(
         &segment_filename,
         &playlist_filename,
         None,
+        input_path,
     )
     .await;
 
-    let mut process = Command::new(&command[0])
+    let process = Command::new(&command[0])
         .args(&command[1..])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -50,14 +58,6 @@ pub async fn process_video_profile(
         .map_err(|error| HlsKitError::FfmpegError {
             error: error.to_string(),
         })?;
-
-    if let Some(mut stdin) = process.stdin.take() {
-        tokio::io::AsyncWriteExt::write_all(&mut stdin, &input_bytes)
-            .await
-            .map_err(|error| HlsKitError::FfmpegError {
-                error: format!("Failed to write to ffmpeg stdin: {}", error),
-            })?;
-    }
 
     let output = process
         .wait_with_output()
