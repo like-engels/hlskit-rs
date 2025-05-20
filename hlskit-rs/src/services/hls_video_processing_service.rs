@@ -35,6 +35,10 @@ pub async fn process_video_profile(
 
     temp_file.write_all(&input_bytes)?;
 
+    temp_file.flush()?;
+
+    temp_file.as_file().sync_all()?;
+
     let input_path = temp_file.path().to_str().unwrap();
 
     let command = build_simple_hls(
