@@ -17,7 +17,7 @@ pub async fn process_video(
     input_bytes: Vec<u8>,
     output_profiles: Vec<HlsVideoProcessingSettings>,
 ) -> Result<HlsVideo, HlsKitError> {
-    let output_dir = TempDir::new()?.into_path();
+    let output_dir = TempDir::new()?.keep();
 
     println!("processing video at: {}", &output_dir.display());
 

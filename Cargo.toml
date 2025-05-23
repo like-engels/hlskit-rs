@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["hlskit-rs"]
+members = ["hlskit-rs", "example"]
 
 [workspace.package]
 authors = ["Engels <higashikataengels@icloud.com>"]

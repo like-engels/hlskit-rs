@@ -1,3 +1,4 @@
+#[allow(clippy::too_many_arguments)]
 pub async fn build_simple_hls(
     width: i32,
     height: i32,
@@ -6,11 +7,12 @@ pub async fn build_simple_hls(
     segment_filename: &str,
     playlist_filename: &str,
     hls_time: Option<i32>,
+    input_path: &str,
 ) -> Vec<String> {
     vec![
         "ffmpeg".to_string(),
         "-i".to_string(),
-        "pipe:0".to_string(),
+        input_path.to_string(),
         "-vf".to_string(),
         format!("scale={}x{}", width, height),
         "-c:v".to_string(),
