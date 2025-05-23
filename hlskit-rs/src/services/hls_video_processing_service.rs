@@ -103,8 +103,11 @@ pub async fn process_video_profile(
         let mut segment_file_read_buffer: Vec<u8> = Vec::new();
         segment_file_handler.read_to_end(&mut segment_file_read_buffer)?;
 
+        let segment_name = format!("data_{}_%03d.ts", stream_index)
+            .replace("%03d", &format!("{:03}", segment_index));
+
         let segment = HlsVideoSegment {
-            segment_name: format!("segment_{}", segment_index),
+            segment_name: segment_name,
             segment_data: segment_file_read_buffer,
         };
 
