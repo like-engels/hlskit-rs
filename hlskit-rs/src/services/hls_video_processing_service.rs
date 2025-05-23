@@ -107,7 +107,7 @@ pub async fn process_video_profile(
             .replace("%03d", &format!("{:03}", segment_index));
 
         let segment = HlsVideoSegment {
-            segment_name: segment_name,
+            segment_name,
             segment_data: segment_file_read_buffer,
         };
 

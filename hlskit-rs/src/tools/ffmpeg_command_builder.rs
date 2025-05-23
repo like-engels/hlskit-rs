@@ -1,3 +1,4 @@
+#[allow(clippy::too_many_arguments)]
 pub async fn build_simple_hls(
     width: i32,
     height: i32,

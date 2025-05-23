@@ -193,7 +193,7 @@ hlskit = { git = "https://github.com/like-engels/hlskit-rs" }
 
 ## 📌 Requirements
 
-- Rust 1.70+
+- Rust 1.85+
 - FFmpeg must be installed in your system and available in `$PATH`
 
 ---
