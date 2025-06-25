@@ -68,10 +68,64 @@ impl FfmpegVideoProcessingPreset {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HlsVideoAudioCodec {
+    Aac,
+    Mp3,
+    Vorbis,
+}
+
+impl HlsVideoAudioCodec {
+    pub fn value(&self) -> &str {
+        match self {
+            HlsVideoAudioCodec::Aac => "aac",
+            HlsVideoAudioCodec::Mp3 => "mp3",
+            HlsVideoAudioCodec::Vorbis => "vorbis",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HlsVideoAudioBitrate {
+    Low,
+    Medium,
+    High,
+}
+
+impl HlsVideoAudioBitrate {
+    pub fn value(&self) -> &str {
+        match self {
+            HlsVideoAudioBitrate::Low => "128k",
+            HlsVideoAudioBitrate::Medium => "256k",
+            HlsVideoAudioBitrate::High => "320k",
+        }
+    }
+}
+
 /// Represents the settings for HLS video processing
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HlsVideoProcessingSettings {
     pub resolution: (i32, i32),
     pub constant_rate_factor: i32,
+    pub audio_codec: HlsVideoAudioCodec,
+    pub audio_bitrate: HlsVideoAudioBitrate,
     pub preset: FfmpegVideoProcessingPreset,
+}
+
+impl HlsVideoProcessingSettings {
+    pub fn new(
+        resolution: (i32, i32),
+        constant_rate_factor: i32,
+        audio_codec: Option<HlsVideoAudioCodec>,
+        audio_bitrate: Option<HlsVideoAudioBitrate>,
+        preset: FfmpegVideoProcessingPreset,
+    ) -> Self {
+        Self {
+            resolution,
+            constant_rate_factor,
+            audio_codec: audio_codec.unwrap_or(HlsVideoAudioCodec::Aac),
+            audio_bitrate: audio_bitrate.unwrap_or(HlsVideoAudioBitrate::Medium),
+            preset,
+        }
+    }
 }

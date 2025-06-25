@@ -19,6 +19,9 @@ categories = [
 	"multimedia::audio",
 ]
 
+[features]
+zenpulse-api = []
+
 [dependencies]
 futures = { version = "0.3.31", features = ["futures-executor", "thread-pool"] }
 tempfile = "3.20.0"

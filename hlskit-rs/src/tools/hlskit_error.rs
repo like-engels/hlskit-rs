@@ -40,10 +40,14 @@
 
 use thiserror::Error;
 
+use crate::tools::ffmpeg_command_builder;
+
 #[derive(Error, Debug)]
 pub enum HlsKitError {
     #[error(transparent)]
     IO(#[from] std::io::Error),
+    #[error(transparent)]
+    FFMPEGBUILDER(#[from] ffmpeg_command_builder::FfmpegCommandBuilderError),
     #[error("[HlsKit] Failed to spawn Ffmpeg: {error:?}")]
     FfmpegError { error: String },
     #[error("File {file_path:?} not found")]

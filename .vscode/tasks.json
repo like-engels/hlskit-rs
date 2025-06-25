@@ -4,8 +4,8 @@
 		{
 			"label": "pre-debug tasks",
 			"dependsOn": [
-				"cargo build (example)",
-				"cargo build (hlskit-rs)"
+				"cargo build (hlskit-rs)",
+				"cargo build (example)"
 			],
 			"dependsOrder": "sequence",
 			"problemMatcher": []

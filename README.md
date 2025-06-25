@@ -50,21 +50,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = process_video(
         buf,
         vec![
-            HlsVideoProcessingSettings {
-                resolution: (1920, 1080),
-                constant_rate_factor: 28,
-                preset: FfmpegVideoProcessingPreset::Fast,
-            },
-            HlsVideoProcessingSettings {
-                resolution: (1280, 720),
-                constant_rate_factor: 28,
-                preset: FfmpegVideoProcessingPreset::Fast,
-            },
-            HlsVideoProcessingSettings {
-                resolution: (854, 480),
-                constant_rate_factor: 28,
-                preset: FfmpegVideoProcessingPreset::Fast,
-            },
+            HlsVideoProcessingSettings::new(
+                (1920, 1080),
+                28,
+                None, // no custom audio code - defaulting to AAC
+                None, // no custom audio bitrate
+                FfmpegVideoProcessingPreset::Fast,
+            ),
+            HlsVideoProcessingSettings::new(
+                (1280, 720),
+                28,
+                None, // no custom audio code - defaulting to AAC
+                None, // no custom audio bitrate
+                FfmpegVideoProcessingPreset::Fast,
+            ),
+            HlsVideoProcessingSettings::new(
+                (854, 480),
+                28,
+                None, // no custom audio code - defaulting to AAC
+                None, // no custom audio bitrate
+                FfmpegVideoProcessingPreset::Fast,
+            ),
         ],
     )
     .await?;
