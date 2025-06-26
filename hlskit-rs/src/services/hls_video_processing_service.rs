@@ -67,6 +67,7 @@ fn build_ffmpeg_command(
     preset: &str,
     segment_filename: &str,
     playlist_filename: &str,
+    encryption_key_url: Option<&str>,
     encryption_key_path: Option<String>,
     iv: Option<String>,
 ) -> Result<Vec<String>, HlsKitError> {
@@ -85,7 +86,13 @@ fn build_ffmpeg_command(
         .dimensions(width, height)
         .crf(crf)
         .preset(preset)
-        .enable_hls(segment_filename, None, None, encryption_settings, 10)
+        .enable_hls(
+            segment_filename,
+            None,
+            encryption_key_url,
+            encryption_settings,
+            10,
+        )
         .output(playlist_filename)
         .build()?;
 
@@ -190,6 +197,7 @@ pub async fn process_video_profile(
         &playlist_filename,
         None,
         None,
+        None,
     )?;
 
     run_ffmpeg_command(&command).await?;
@@ -209,8 +217,9 @@ pub async fn process_video_profile_with_encryption(
     preset: &str,
     output_dir: &Path,
     stream_index: i32,
+    encryption_key_url: String,
     encryption_key_path: String,
-    iv: String,
+    iv: Option<String>,
 ) -> Result<HlsVideoResolution, HlsKitError> {
     let (width, height) = resolution;
     let segment_filename = format!(
@@ -235,11 +244,10 @@ pub async fn process_video_profile_with_encryption(
         preset,
         &segment_filename,
         &playlist_filename,
+        Some(&encryption_key_url),
         Some(encryption_key_path),
-        Some(iv),
+        iv,
     )?;
-
-    println!("Command query is: {:?}", command);
 
     run_ffmpeg_command(&command).await?;
 

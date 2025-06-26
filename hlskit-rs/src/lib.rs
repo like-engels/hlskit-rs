@@ -49,6 +49,8 @@ use services::hls_video_processing_service::process_video_profile;
 use tempfile::TempDir;
 use tools::{hlskit_error::HlsKitError, m3u8_tools::generate_master_playlist};
 
+use crate::services::hls_video_processing_service::process_video_profile_with_encryption;
+
 pub mod models;
 pub mod services;
 pub mod tools;
@@ -72,6 +74,60 @@ pub async fn process_video(
                 profile.preset.value(),
                 &output_dir,
                 index.try_into().unwrap(),
+            )
+        })
+        .collect();
+
+    let resolution_results: Vec<HlsVideoResolution> = try_join_all(tasks).await?;
+
+    let master_m3u8_data = generate_master_playlist(
+        &output_dir,
+        resolution_results
+            .iter()
+            .map(|result| result.resolution)
+            .collect(),
+        resolution_results
+            .iter()
+            .map(|result| result.playlist_name.as_str())
+            .collect(),
+    )
+    .await?;
+
+    let hls_video = HlsVideo {
+        master_m3u8_data,
+        resolutions: resolution_results,
+    };
+
+    fs::remove_dir_all(output_dir)?;
+
+    Ok(hls_video)
+}
+
+pub async fn process_video_with_encrypted_segments(
+    input_bytes: Vec<u8>,
+    output_profiles: Vec<HlsVideoProcessingSettings>,
+    encryption_key_url: String,
+    encryption_key_path: String,
+    iv: Option<String>,
+) -> Result<HlsVideo, HlsKitError> {
+    let output_dir = TempDir::new()?.keep();
+
+    println!("processing video at: {}", &output_dir.display());
+
+    let tasks: Vec<_> = output_profiles
+        .iter()
+        .enumerate()
+        .map(|(index, profile)| {
+            process_video_profile_with_encryption(
+                input_bytes.clone(),
+                profile.resolution,
+                profile.constant_rate_factor,
+                profile.preset.value(),
+                &output_dir,
+                index.try_into().unwrap(),
+                encryption_key_url.clone(),
+                encryption_key_path.clone(),
+                iv.clone(),
             )
         })
         .collect();
