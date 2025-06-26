@@ -1,6 +1,6 @@
 [package]
 name = "hlskit"
-version = "0.1.3"
+version = "0.2.0"
 edition = "2021"
 authors.workspace = true
 license.workspace = true
@@ -18,6 +18,9 @@ categories = [
 	"multimedia::video",
 	"multimedia::audio",
 ]
+
+[features]
+zenpulse-api = []
 
 [dependencies]
 futures = { version = "0.3.31", features = ["futures-executor", "thread-pool"] }

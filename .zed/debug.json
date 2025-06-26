@@ -1,0 +1,11 @@
+[
+  {
+    "label": "Example app",
+    "adapter": "CodeLLDB",
+    "request": "launch",
+    "program": "$ZED_WORKTREE_ROOT/example/target/debug/example",
+    "args": [],
+    "cwd": "$ZED_WORKTREE_ROOT/example/",
+    "preLaunchTask": "pre-debug tasks"
+  }
+]

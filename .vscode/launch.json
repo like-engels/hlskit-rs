@@ -8,7 +8,7 @@
 			"name": "Example app",
 			"type": "lldb",
 			"request": "launch",
-			"program": "${workspaceRoot}/example/target/debug/example",
+			"program": "${workspaceRoot}/target/debug/example",
 			"args": [],
 			"cwd": "${workspaceRoot}/example/",
 			"preLaunchTask": "pre-debug tasks",

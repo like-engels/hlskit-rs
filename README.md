@@ -8,6 +8,31 @@ Wanna contribute? Check [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ---
 
+## HlsKit 0.2.0 Released!!!
+HlsKit now supports AES-128 HLS segment encryption by providing a key file and a custom initialization vector (IV).
+
+To encrypt HLS segments first create a key with OpenSSL with the following command:
+
+```bash
+openssl rand 16 > hls.key
+```
+
+Now, instead of calling process_video(), you should call process_video_with_encrypted_segments()
+Then just pass the following additional parameters:
+
+- `encryption_key_url`: The public accessible URL to the key file.
+- `encryption_key_path`: Path to the key file in the server.
+- `iv`: Initialization vector for encryption (optional).
+
+### Notes
+
+The encryption key must be uploaded somewhere accessible by video players, we recommend using a secure storage service or a key server. The key also must be stored in the server where HlsKit is being used to transcode videos.
+
+HlsKit uses `encryption_key_path` to locate the key file in the server and encrypt HLS Segments, and uses `encryption_key_url` to set the `base_url` property in m3u8 playlists, allowing video players to retrieve the encryption key to read the segments, any security measures should be taken to protect the key file from unauthorized access.
+
+Using encrypted HLS segments provides an additional layer of security, making it more difficult for unauthorized users to access the video content but it is not a drop-in replacement for DRM systems. It is recommended to use encrypted HLS segments in conjunction with DRM systems for maximum security.
+---
+
 ## 🌐 How It Works
 
 ```mermaid
@@ -50,21 +75,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = process_video(
         buf,
         vec![
-            HlsVideoProcessingSettings {
-                resolution: (1920, 1080),
-                constant_rate_factor: 28,
-                preset: FfmpegVideoProcessingPreset::Fast,
-            },
-            HlsVideoProcessingSettings {
-                resolution: (1280, 720),
-                constant_rate_factor: 28,
-                preset: FfmpegVideoProcessingPreset::Fast,
-            },
-            HlsVideoProcessingSettings {
-                resolution: (854, 480),
-                constant_rate_factor: 28,
-                preset: FfmpegVideoProcessingPreset::Fast,
-            },
+            HlsVideoProcessingSettings::new(
+                (1920, 1080),
+                28,
+                None, // no custom audio code - defaulting to AAC
+                None, // no custom audio bitrate
+                FfmpegVideoProcessingPreset::Fast,
+            ),
+            HlsVideoProcessingSettings::new(
+                (1280, 720),
+                28,
+                None, // no custom audio code - defaulting to AAC
+                None, // no custom audio bitrate
+                FfmpegVideoProcessingPreset::Fast,
+            ),
+            HlsVideoProcessingSettings::new(
+                (854, 480),
+                28,
+                None, // no custom audio code - defaulting to AAC
+                None, // no custom audio bitrate
+                FfmpegVideoProcessingPreset::Fast,
+            ),
         ],
     )
     .await?;
@@ -186,7 +217,7 @@ async fn upload(mut multipart: Multipart) -> impl IntoResponse {
 
 ```toml
 [dependencies]
-hlskit = { git = "https://github.com/like-engels/hlskit-rs" }
+hlskit = "0.2.0"
 ```
 
 ---
