@@ -59,6 +59,7 @@ fn write_input_to_tempfile(input_bytes: &[u8]) -> Result<NamedTempFile, HlsKitEr
     Ok(temp_file)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_ffmpeg_command(
     input_path: &str,
     width: i32,
@@ -72,14 +73,10 @@ fn build_ffmpeg_command(
     iv: Option<String>,
 ) -> Result<Vec<String>, HlsKitError> {
     let encryption_settings: Option<HlsOutputEncryptionConfig> =
-        if encryption_key_path.is_some() && iv.is_some() {
-            Some(HlsOutputEncryptionConfig {
-                encryption_key_path: encryption_key_path.unwrap(),
-                iv,
-            })
-        } else {
-            None
-        };
+        encryption_key_path.map(|key_path| HlsOutputEncryptionConfig {
+            encryption_key_path: key_path,
+            iv,
+        });
 
     let command = FfmpegCommandBuilder::new()
         .input(input_path)
@@ -210,6 +207,7 @@ pub async fn process_video_profile(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn process_video_profile_with_encryption(
     input_bytes: Vec<u8>,
     resolution: (i32, i32),

@@ -235,21 +235,9 @@ impl FfmpegCommandBuilder {
         self.command.hls_config = Some(HlsOutputConfig {
             segment_filename_pattern: segment_filename_pattern.to_string(),
             hls_time: hls_segment_duration_seconds,
-            playlist_type: if playlist_type.is_some() {
-                Some(playlist_type.unwrap().to_string())
-            } else {
-                None
-            },
-            base_url: if base_url.is_some() {
-                Some(base_url.unwrap().to_string())
-            } else {
-                None
-            },
-            encryption_config: if encryption_settings.is_some() {
-                encryption_settings
-            } else {
-                None
-            },
+            playlist_type: playlist_type.map(|ptype| ptype.to_string()),
+            base_url: base_url.map(|url| url.to_string()),
+            encryption_config: encryption_settings,
         });
         self
     }
