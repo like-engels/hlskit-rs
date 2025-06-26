@@ -192,8 +192,6 @@ pub async fn process_video_profile(
         None,
     )?;
 
-    println!("Command query is: {:?}", command);
-
     run_ffmpeg_command(&command).await?;
 
     read_playlist_and_segments(
