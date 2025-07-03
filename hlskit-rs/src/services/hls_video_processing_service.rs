@@ -207,6 +207,49 @@ pub async fn process_video_profile(
     )
 }
 
+pub async fn process_video_profile_from_path(
+    video_path: &str,
+    resolution: (i32, i32),
+    crf: i32,
+    preset: &str,
+    output_dir: &Path,
+    stream_index: i32,
+) -> Result<HlsVideoResolution, HlsKitError> {
+    let (width, height) = resolution;
+    let segment_filename = format!(
+        "{}/data_{}_%03d.ts",
+        output_dir.to_str().unwrap(),
+        stream_index
+    );
+    let playlist_filename = format!(
+        "{}/playlist_{}.m3u8",
+        output_dir.to_str().unwrap(),
+        stream_index
+    );
+
+    let command = build_ffmpeg_command(
+        video_path,
+        width,
+        height,
+        crf,
+        preset,
+        &segment_filename,
+        &playlist_filename,
+        None,
+        None,
+        None,
+    )?;
+
+    run_ffmpeg_command(&command).await?;
+
+    read_playlist_and_segments(
+        &playlist_filename,
+        &segment_filename,
+        resolution,
+        stream_index,
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn process_video_profile_with_encryption(
     input_bytes: Vec<u8>,
