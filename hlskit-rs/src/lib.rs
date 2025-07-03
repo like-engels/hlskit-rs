@@ -49,7 +49,9 @@ use services::hls_video_processing_service::process_video_profile;
 use tempfile::TempDir;
 use tools::{hlskit_error::HlsKitError, m3u8_tools::generate_master_playlist};
 
-use crate::services::hls_video_processing_service::process_video_profile_with_encryption;
+use crate::services::hls_video_processing_service::{
+    process_video_profile_from_path, process_video_profile_with_encryption,
+};
 
 pub mod models;
 pub mod services;
@@ -69,6 +71,54 @@ pub async fn process_video(
         .map(|(index, profile)| {
             process_video_profile(
                 input_bytes.clone(),
+                profile.resolution,
+                profile.constant_rate_factor,
+                profile.preset.value(),
+                &output_dir,
+                index.try_into().unwrap(),
+            )
+        })
+        .collect();
+
+    let resolution_results: Vec<HlsVideoResolution> = try_join_all(tasks).await?;
+
+    let master_m3u8_data = generate_master_playlist(
+        &output_dir,
+        resolution_results
+            .iter()
+            .map(|result| result.resolution)
+            .collect(),
+        resolution_results
+            .iter()
+            .map(|result| result.playlist_name.as_str())
+            .collect(),
+    )
+    .await?;
+
+    let hls_video = HlsVideo {
+        master_m3u8_data,
+        resolutions: resolution_results,
+    };
+
+    fs::remove_dir_all(output_dir)?;
+
+    Ok(hls_video)
+}
+
+pub async fn process_video_from_path(
+    video_path: &str,
+    output_profiles: Vec<HlsVideoProcessingSettings>,
+) -> Result<HlsVideo, HlsKitError> {
+    let output_dir = TempDir::new()?.keep();
+
+    println!("processing video at: {}", &output_dir.display());
+
+    let tasks: Vec<_> = output_profiles
+        .iter()
+        .enumerate()
+        .map(|(index, profile)| {
+            process_video_profile_from_path(
+                video_path,
                 profile.resolution,
                 profile.constant_rate_factor,
                 profile.preset.value(),
