@@ -40,14 +40,46 @@
 
 use thiserror::Error;
 
-use crate::tools::ffmpeg_command_builder;
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
+pub enum VideoProcessingErrors {
+    #[error("Invalid video format")]
+    InvalidFormat,
+    #[error("Missing output file path")]
+    MissingOutputPath,
+    #[error("Unsupported video bitrate")]
+    UnsupportedBitrate,
+    #[error("Empty video input")]
+    EmptyVideoInput,
+    #[error("Invalid video input")]
+    InvalidVideoInput,
+    #[error("File not found")]
+    FileNotFound,
+}
+
+#[derive(Debug, Error)]
+pub enum FfmpegCommandBuilderError {
+    #[error("Configuration Validation Error: {0}")]
+    ConfigurationError(String),
+    #[error("Command Build Error: {0}")]
+    BuildError(String),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("Conversion Error: {0}")]
+    ConversionError(String),
+    #[error("Unexpected Internal State: {0}")]
+    InternalStateError(String),
+    #[error("FFmpeg specific setting error: {0}")]
+    FfmpegSettingError(String),
+}
 
 #[derive(Error, Debug)]
 pub enum HlsKitError {
     #[error(transparent)]
     IO(#[from] std::io::Error),
     #[error(transparent)]
-    FFMPEGBUILDER(#[from] ffmpeg_command_builder::FfmpegCommandBuilderError),
+    FFMPEGBUILDER(#[from] FfmpegCommandBuilderError),
+    #[error(transparent)]
+    VideoProcessingError(#[from] VideoProcessingErrors),
     #[error("[HlsKit] Failed to spawn Ffmpeg: {error:?}")]
     FfmpegError { error: String },
     #[error("File {file_path:?} not found")]

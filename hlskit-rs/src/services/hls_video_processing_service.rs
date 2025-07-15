@@ -46,54 +46,97 @@ use tempfile::NamedTempFile;
 use tokio::process::Command;
 
 use crate::models::hls_video::HlsVideoSegment;
+use crate::models::hls_video_processing_settings::HlsVideoProcessingSettings;
 use crate::tools::ffmpeg_command_builder::HlsOutputEncryptionConfig;
 use crate::{
     models::hls_video::HlsVideoResolution,
     tools::{ffmpeg_command_builder::FfmpegCommandBuilder, hlskit_error::HlsKitError},
 };
+use crate::{VideoInputType, VideoProcessorEncryptionSettings};
 
-fn write_input_to_tempfile(input_bytes: &[u8]) -> Result<NamedTempFile, HlsKitError> {
-    let mut temp_file = NamedTempFile::new()?;
-    temp_file.write_all(input_bytes)?;
-    temp_file.flush()?;
-    Ok(temp_file)
+pub trait VideoProcessingBackend {
+    fn process_profile(
+        &self,
+        input: &VideoInputType,
+        profile: &HlsVideoProcessingSettings,
+        output_dir: &Path,
+        stream_index: i32,
+        encryption: Option<&VideoProcessorEncryptionSettings>,
+    ) -> impl std::future::Future<Output = Result<HlsVideoResolution, HlsKitError>>;
 }
 
-#[allow(clippy::too_many_arguments)]
-fn build_ffmpeg_command(
-    input_path: &str,
-    width: i32,
-    height: i32,
-    crf: i32,
-    preset: &str,
-    segment_filename: &str,
-    playlist_filename: &str,
-    encryption_key_url: Option<&str>,
-    encryption_key_path: Option<String>,
-    iv: Option<String>,
-) -> Result<Vec<String>, HlsKitError> {
-    let encryption_settings: Option<HlsOutputEncryptionConfig> =
-        encryption_key_path.map(|key_path| HlsOutputEncryptionConfig {
-            encryption_key_path: key_path,
-            iv,
+#[derive(Default)]
+pub struct FfmpegBackend;
+
+impl VideoProcessingBackend for FfmpegBackend {
+    async fn process_profile(
+        &self,
+        input: &VideoInputType,
+        profile: &HlsVideoProcessingSettings,
+        output_dir: &Path,
+        stream_index: i32,
+        encryption: Option<&VideoProcessorEncryptionSettings>,
+    ) -> Result<HlsVideoResolution, HlsKitError> {
+        let mut temp_file = NamedTempFile::new()?;
+
+        let input_path = match input {
+            VideoInputType::InMemoryFile(bytes) => {
+                temp_file.write_all(bytes)?;
+                temp_file.flush()?;
+                temp_file.path().to_str().unwrap().to_string()
+            }
+            VideoInputType::FilePath(path) => path.clone(),
+        };
+
+        let (width, height) = profile.resolution;
+
+        let segment_filename = format!(
+            "{}/data_{}_%03d.ts",
+            output_dir.to_str().unwrap(),
+            stream_index
+        );
+
+        let playlist_filename = format!(
+            "{}/playlist_{}.m3u8",
+            output_dir.to_str().unwrap(),
+            stream_index
+        );
+
+        let encryption_settings = encryption.map(|enc| HlsOutputEncryptionConfig {
+            encryption_key_path: enc.encryption_key_path.clone(),
+            iv: enc.iv.clone(),
         });
 
-    let command = FfmpegCommandBuilder::new()
-        .input(input_path)
-        .dimensions(width, height)
-        .crf(crf)
-        .preset(preset)
-        .enable_hls(
-            segment_filename,
-            None,
-            encryption_key_url,
-            encryption_settings,
-            10,
-        )
-        .output(playlist_filename)
-        .build()?;
+        let encryption_key_url = encryption.map(|enc| enc.encryption_key_url.as_str());
 
-    Ok(command)
+        let command = FfmpegCommandBuilder::new()
+            .input(&input_path)
+            .dimensions(width, height)
+            .crf(profile.constant_rate_factor)
+            .preset(profile.preset.value())
+            .enable_hls(
+                &segment_filename,
+                None, // Default playlist type
+                encryption_key_url,
+                encryption_settings,
+                10, // Segment duration in seconds
+            )
+            .output(&playlist_filename)
+            .build()?;
+
+        // Execute the FFmpeg command
+        run_ffmpeg_command(&command).await?;
+
+        // Read the generated playlist and segments into memory
+        let resolution = read_playlist_and_segments(
+            &playlist_filename,
+            &segment_filename,
+            profile.resolution,
+            stream_index,
+        )?;
+
+        Ok(resolution)
+    }
 }
 
 async fn run_ffmpeg_command(command: &[String]) -> Result<(), HlsKitError> {
@@ -103,21 +146,21 @@ async fn run_ffmpeg_command(command: &[String]) -> Result<(), HlsKitError> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|error| HlsKitError::FfmpegError {
-            error: error.to_string(),
+        .map_err(|e| HlsKitError::FfmpegError {
+            error: e.to_string(),
         })?;
 
     let output = process
         .wait_with_output()
         .await
-        .map_err(|error| HlsKitError::FfmpegError {
-            error: format!("Failed to write to ffmpeg output: {}", error),
+        .map_err(|e| HlsKitError::FfmpegError {
+            error: format!("Failed to capture FFmpeg output: {e}"),
         })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(HlsKitError::FfmpegError {
-            error: format!("FFmpeg error: {}", stderr),
+            error: format!("FFmpeg failed: {stderr}"),
         });
     }
     Ok(())
@@ -129,173 +172,36 @@ fn read_playlist_and_segments(
     resolution: (i32, i32),
     stream_index: i32,
 ) -> Result<HlsVideoResolution, HlsKitError> {
-    let mut hls_resolution = HlsVideoResolution {
+    let mut resolution = HlsVideoResolution {
         resolution,
-        playlist_name: format!("playlist_{}.m3u8", stream_index),
-        playlist_data: vec![],
-        segments: vec![],
+        playlist_name: format!("playlist_{stream_index}.m3u8"),
+        playlist_data: Vec::new(),
+        segments: Vec::new(),
     };
 
-    let mut playlist_handler = File::open(playlist_filename)?;
-    playlist_handler.read_to_end(&mut hls_resolution.playlist_data)?;
+    // Read the playlist file
+    let mut playlist_file = File::open(playlist_filename)?;
+    playlist_file.read_to_end(&mut resolution.playlist_data)?;
 
+    // Read all segment files
     let mut segment_index = 0;
     loop {
-        let segment_path = segment_filename.replace("%03d", &format!("{:03}", segment_index));
+        let segment_path = segment_filename.replace("%03d", &format!("{segment_index:03}"));
         if !PathBuf::from(&segment_path).exists() {
             break;
         }
-        let mut segment_file_handler = File::open(&segment_path)?;
-        let mut segment_file_read_buffer: Vec<u8> = Vec::new();
-        segment_file_handler.read_to_end(&mut segment_file_read_buffer)?;
 
-        let segment_name = format!("data_{}_%03d.ts", stream_index)
-            .replace("%03d", &format!("{:03}", segment_index));
+        let mut segment_file = File::open(&segment_path)?;
+        let mut segment_data = Vec::new();
+        segment_file.read_to_end(&mut segment_data)?;
+
         let segment = HlsVideoSegment {
-            segment_name,
-            segment_data: segment_file_read_buffer,
+            segment_name: format!("data_{stream_index}_{segment_index:03}.ts"),
+            segment_data,
         };
-        hls_resolution.segments.push(segment);
+        resolution.segments.push(segment);
         segment_index += 1;
     }
-    Ok(hls_resolution)
-}
 
-pub async fn process_video_profile(
-    input_bytes: Vec<u8>,
-    resolution: (i32, i32),
-    crf: i32,
-    preset: &str,
-    output_dir: &Path,
-    stream_index: i32,
-) -> Result<HlsVideoResolution, HlsKitError> {
-    let (width, height) = resolution;
-    let segment_filename = format!(
-        "{}/data_{}_%03d.ts",
-        output_dir.to_str().unwrap(),
-        stream_index
-    );
-    let playlist_filename = format!(
-        "{}/playlist_{}.m3u8",
-        output_dir.to_str().unwrap(),
-        stream_index
-    );
-
-    let temp_file = write_input_to_tempfile(&input_bytes)?;
-    let input_path = temp_file.path().to_str().unwrap();
-
-    let command = build_ffmpeg_command(
-        input_path,
-        width,
-        height,
-        crf,
-        preset,
-        &segment_filename,
-        &playlist_filename,
-        None,
-        None,
-        None,
-    )?;
-
-    run_ffmpeg_command(&command).await?;
-
-    read_playlist_and_segments(
-        &playlist_filename,
-        &segment_filename,
-        resolution,
-        stream_index,
-    )
-}
-
-pub async fn process_video_profile_from_path(
-    video_path: &str,
-    resolution: (i32, i32),
-    crf: i32,
-    preset: &str,
-    output_dir: &Path,
-    stream_index: i32,
-) -> Result<HlsVideoResolution, HlsKitError> {
-    let (width, height) = resolution;
-    let segment_filename = format!(
-        "{}/data_{}_%03d.ts",
-        output_dir.to_str().unwrap(),
-        stream_index
-    );
-    let playlist_filename = format!(
-        "{}/playlist_{}.m3u8",
-        output_dir.to_str().unwrap(),
-        stream_index
-    );
-
-    let command = build_ffmpeg_command(
-        video_path,
-        width,
-        height,
-        crf,
-        preset,
-        &segment_filename,
-        &playlist_filename,
-        None,
-        None,
-        None,
-    )?;
-
-    run_ffmpeg_command(&command).await?;
-
-    read_playlist_and_segments(
-        &playlist_filename,
-        &segment_filename,
-        resolution,
-        stream_index,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub async fn process_video_profile_with_encryption(
-    input_bytes: Vec<u8>,
-    resolution: (i32, i32),
-    crf: i32,
-    preset: &str,
-    output_dir: &Path,
-    stream_index: i32,
-    encryption_key_url: String,
-    encryption_key_path: String,
-    iv: Option<String>,
-) -> Result<HlsVideoResolution, HlsKitError> {
-    let (width, height) = resolution;
-    let segment_filename = format!(
-        "{}/data_{}_%03d.ts",
-        output_dir.to_str().unwrap(),
-        stream_index
-    );
-    let playlist_filename = format!(
-        "{}/playlist_{}.m3u8",
-        output_dir.to_str().unwrap(),
-        stream_index
-    );
-
-    let temp_file = write_input_to_tempfile(&input_bytes)?;
-    let input_path = temp_file.path().to_str().unwrap();
-
-    let command = build_ffmpeg_command(
-        input_path,
-        width,
-        height,
-        crf,
-        preset,
-        &segment_filename,
-        &playlist_filename,
-        Some(&encryption_key_url),
-        Some(encryption_key_path),
-        iv,
-    )?;
-
-    run_ffmpeg_command(&command).await?;
-
-    read_playlist_and_segments(
-        &playlist_filename,
-        &segment_filename,
-        resolution,
-        stream_index,
-    )
+    Ok(resolution)
 }
