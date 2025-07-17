@@ -43,12 +43,14 @@ use hlskit::{
     models::hls_video_processing_settings::{
         FfmpegVideoProcessingPreset, HlsVideoProcessingSettings,
     },
-    process_video,
+    prelude::VideoProcessor,
+    process_video, process_video_from_path,
+    services::hls_video_processing_service::FfmpegBackend,
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Starting video processing");
+    println!("Processing video from memory");
 
     let path = env::current_dir()?;
     println!("Current directory: {}", path.display());
@@ -86,11 +88,83 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
 
+    println!("Processing video from file path");
+
+    let result2 = process_video_from_path(
+        "src/sample.mp4",
+        vec![
+            HlsVideoProcessingSettings::new(
+                (1920, 1080),
+                28,
+                None, // no custom audio code - defaulting to AAC
+                None, // no custom audio bitrate
+                FfmpegVideoProcessingPreset::Fast,
+            ),
+            HlsVideoProcessingSettings::new(
+                (1280, 720),
+                28,
+                None, // no custom audio code - defaulting to AAC
+                None, // no custom audio bitrate
+                FfmpegVideoProcessingPreset::Fast,
+            ),
+            HlsVideoProcessingSettings::new(
+                (854, 480),
+                28,
+                None, // no custom audio code - defaulting to AAC
+                None, // no custom audio bitrate
+                FfmpegVideoProcessingPreset::Fast,
+            ),
+        ],
+    )
+    .await?;
+
     println!("Video processing completed successfully");
 
     println!(
         "Video master m3u8 file data: {:#?}",
         result.master_m3u8_data
+    );
+
+    println!(
+        "Video master m3u8 file data: {:#?}",
+        result2.master_m3u8_data
+    );
+
+    println!("Testing new API style");
+
+    let result3 = VideoProcessor::<FfmpegBackend>::new()
+        .with_video_input(hlskit::VideoInputType::FilePath(
+            "src/sample.mp4".to_string(),
+        ))
+        .with_output_profiles(vec![
+            HlsVideoProcessingSettings::new(
+                (1920, 1080),
+                28,
+                None, // no custom audio code - defaulting to AAC
+                None, // no custom audio bitrate
+                FfmpegVideoProcessingPreset::Fast,
+            ),
+            HlsVideoProcessingSettings::new(
+                (1280, 720),
+                28,
+                None, // no custom audio code - defaulting to AAC
+                None, // no custom audio bitrate
+                FfmpegVideoProcessingPreset::Fast,
+            ),
+            HlsVideoProcessingSettings::new(
+                (854, 480),
+                28,
+                None, // no custom audio code - defaulting to AAC
+                None, // no custom audio bitrate
+                FfmpegVideoProcessingPreset::Fast,
+            ),
+        ])
+        .process_video()
+        .await?;
+
+    println!(
+        "Video master m3u8 file data: {:#?}",
+        result3.master_m3u8_data
     );
 
     Ok(())
