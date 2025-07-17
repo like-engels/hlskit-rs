@@ -71,10 +71,11 @@ pub async fn generate_master_playlist(
 
             writeln!(
                 master_playlist_handler,
-                "#EXT-X-STREAM-INF:BANDWIDTH={bandwidth},RESOLUTION={width}x{height}"
+                "#EXT-X-STREAM-INF:BANDWIDTH={},RESOLUTION={}x{}",
+                bandwidth, width, height
             )?;
-            writeln!(master_playlist_handler, "{raw_path}")?;
-            println!("[HlsKit] Master playlist created for {width}x{height}");
+            writeln!(master_playlist_handler, "{}", raw_path)?;
+            println!("[HlsKit] Master playlist created for {}x{}", width, height);
         }
 
         master_playlist_handler.flush()?;

@@ -39,8 +39,23 @@
  */
 
 use std::path::{Path, PathBuf};
+use thiserror::Error;
 
-use crate::tools::hlskit_error::FfmpegCommandBuilderError;
+#[derive(Debug, Error)]
+pub enum FfmpegCommandBuilderError {
+    #[error("Configuration Validation Error: {0}")]
+    ConfigurationError(String),
+    #[error("Command Build Error: {0}")]
+    BuildError(String),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("Conversion Error: {0}")]
+    ConversionError(String),
+    #[error("Unexpected Internal State: {0}")]
+    InternalStateError(String),
+    #[error("FFmpeg specific setting error: {0}")]
+    FfmpegSettingError(String),
+}
 
 #[derive(Debug, Default)]
 pub struct FfmpegCommand {
@@ -165,7 +180,8 @@ impl FfmpegCommandBuilder {
         if !(0..=51).contains(&value) {
             self.build_errors
                 .push(FfmpegCommandBuilderError::FfmpegSettingError(format!(
-                    "CRF value {value} is outside the standard range [0-51]."
+                    "CRF value {} is outside the standard range [0-51].",
+                    value
                 )));
         }
         self.command.crf = value;
@@ -187,7 +203,8 @@ impl FfmpegCommandBuilder {
         if !valid_presets.contains(&name) {
             self.build_errors
                 .push(FfmpegCommandBuilderError::FfmpegSettingError(format!(
-                    "Preset '{name}' is not a recognized FFmpeg preset.",
+                    "Preset '{}' is not a recognized FFmpeg preset.",
+                    name
                 )));
         }
         self.command.preset = name.to_string();
