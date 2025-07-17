@@ -172,7 +172,7 @@ async fn process_video_internal<V: VideoProcessingBackend>(
     Ok(hls_video)
 }
 
-// #[cfg(feature = "zenpulse-api")]
+#[cfg(feature = "zenpulse-api")]
 pub mod prelude {
     use std::{ffi::OsStr, fs, path::PathBuf};
 
