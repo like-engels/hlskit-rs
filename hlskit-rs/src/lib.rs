@@ -45,112 +45,61 @@ use models::{
     hls_video::{HlsVideo, HlsVideoResolution},
     hls_video_processing_settings::HlsVideoProcessingSettings,
 };
-use services::hls_video_processing_service::process_video_profile;
+
 use tempfile::TempDir;
 use tools::{hlskit_error::HlsKitError, m3u8_tools::generate_master_playlist};
 
-use crate::services::hls_video_processing_service::{
-    process_video_profile_from_path, process_video_profile_with_encryption,
-};
+use crate::services::hls_video_processing_service::{FfmpegBackend, VideoProcessingBackend};
 
 pub mod models;
 pub mod services;
 pub mod tools;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VideoInputType {
+    InMemoryFile(Vec<u8>),
+    FilePath(String),
+}
+
+impl Default for VideoInputType {
+    fn default() -> Self {
+        VideoInputType::InMemoryFile(vec![])
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VideoProcessorEncryptionSettings {
+    pub encryption_key_url: String,
+    pub encryption_key_path: String,
+    pub iv: Option<String>,
+}
+
 pub async fn process_video(
     input_bytes: Vec<u8>,
     output_profiles: Vec<HlsVideoProcessingSettings>,
 ) -> Result<HlsVideo, HlsKitError> {
-    let output_dir = TempDir::new()?.keep();
-
-    println!("processing video at: {}", &output_dir.display());
-
-    let tasks: Vec<_> = output_profiles
-        .iter()
-        .enumerate()
-        .map(|(index, profile)| {
-            process_video_profile(
-                input_bytes.clone(),
-                profile.resolution,
-                profile.constant_rate_factor,
-                profile.preset.value(),
-                &output_dir,
-                index.try_into().unwrap(),
-            )
-        })
-        .collect();
-
-    let resolution_results: Vec<HlsVideoResolution> = try_join_all(tasks).await?;
-
-    let master_m3u8_data = generate_master_playlist(
-        &output_dir,
-        resolution_results
-            .iter()
-            .map(|result| result.resolution)
-            .collect(),
-        resolution_results
-            .iter()
-            .map(|result| result.playlist_name.as_str())
-            .collect(),
+    let backend = FfmpegBackend;
+    process_video_internal::<FfmpegBackend>(
+        VideoInputType::InMemoryFile(input_bytes),
+        output_profiles,
+        None,
+        backend,
     )
-    .await?;
-
-    let hls_video = HlsVideo {
-        master_m3u8_data,
-        resolutions: resolution_results,
-    };
-
-    fs::remove_dir_all(output_dir)?;
-
-    Ok(hls_video)
+    .await
 }
 
 pub async fn process_video_from_path(
     video_path: &str,
     output_profiles: Vec<HlsVideoProcessingSettings>,
 ) -> Result<HlsVideo, HlsKitError> {
-    let output_dir = TempDir::new()?.keep();
-
-    println!("processing video at: {}", &output_dir.display());
-
-    let tasks: Vec<_> = output_profiles
-        .iter()
-        .enumerate()
-        .map(|(index, profile)| {
-            process_video_profile_from_path(
-                video_path,
-                profile.resolution,
-                profile.constant_rate_factor,
-                profile.preset.value(),
-                &output_dir,
-                index.try_into().unwrap(),
-            )
-        })
-        .collect();
-
-    let resolution_results: Vec<HlsVideoResolution> = try_join_all(tasks).await?;
-
-    let master_m3u8_data = generate_master_playlist(
-        &output_dir,
-        resolution_results
-            .iter()
-            .map(|result| result.resolution)
-            .collect(),
-        resolution_results
-            .iter()
-            .map(|result| result.playlist_name.as_str())
-            .collect(),
+    let backend = FfmpegBackend;
+    process_video_internal::<FfmpegBackend>(
+        VideoInputType::FilePath(video_path.to_string()),
+        output_profiles,
+        None,
+        backend,
     )
-    .await?;
-
-    let hls_video = HlsVideo {
-        master_m3u8_data,
-        resolutions: resolution_results,
-    };
-
-    fs::remove_dir_all(output_dir)?;
-
-    Ok(hls_video)
+    .await
 }
 
 pub async fn process_video_with_encrypted_segments(
@@ -160,24 +109,41 @@ pub async fn process_video_with_encrypted_segments(
     encryption_key_path: String,
     iv: Option<String>,
 ) -> Result<HlsVideo, HlsKitError> {
-    let output_dir = TempDir::new()?.keep();
+    let backend = FfmpegBackend;
+    let encryption = Some(VideoProcessorEncryptionSettings {
+        encryption_key_url,
+        encryption_key_path,
+        iv,
+    });
+    process_video_internal::<FfmpegBackend>(
+        VideoInputType::InMemoryFile(input_bytes),
+        output_profiles,
+        encryption,
+        backend,
+    )
+    .await
+}
 
-    println!("processing video at: {}", &output_dir.display());
+// Internal helper function to avoid code duplication
+async fn process_video_internal<V: VideoProcessingBackend>(
+    input: VideoInputType,
+    output_profiles: Vec<HlsVideoProcessingSettings>,
+    encryption: Option<VideoProcessorEncryptionSettings>,
+    backend: V,
+) -> Result<HlsVideo, HlsKitError> {
+    let output_dir = TempDir::new()?;
+    let output_dir_path = output_dir.path();
 
     let tasks: Vec<_> = output_profiles
         .iter()
         .enumerate()
         .map(|(index, profile)| {
-            process_video_profile_with_encryption(
-                input_bytes.clone(),
-                profile.resolution,
-                profile.constant_rate_factor,
-                profile.preset.value(),
-                &output_dir,
-                index.try_into().unwrap(),
-                encryption_key_url.clone(),
-                encryption_key_path.clone(),
-                iv.clone(),
+            backend.process_profile(
+                &input,
+                profile,
+                output_dir_path,
+                index as i32,
+                encryption.as_ref(),
             )
         })
         .collect();
@@ -185,7 +151,7 @@ pub async fn process_video_with_encrypted_segments(
     let resolution_results: Vec<HlsVideoResolution> = try_join_all(tasks).await?;
 
     let master_m3u8_data = generate_master_playlist(
-        &output_dir,
+        output_dir_path,
         resolution_results
             .iter()
             .map(|result| result.resolution)
@@ -202,7 +168,162 @@ pub async fn process_video_with_encrypted_segments(
         resolutions: resolution_results,
     };
 
-    fs::remove_dir_all(output_dir)?;
-
+    fs::remove_dir_all(output_dir_path)?;
     Ok(hls_video)
+}
+
+#[cfg(feature = "zenpulse-api")]
+pub mod prelude {
+    use std::{ffi::OsStr, fs, path::PathBuf};
+
+    use futures::future::try_join_all;
+    use tempfile::TempDir;
+
+    use crate::{
+        models::{
+            hls_video::{HlsVideo, HlsVideoResolution},
+            hls_video_processing_settings::HlsVideoProcessingSettings,
+        },
+        services::hls_video_processing_service::VideoProcessingBackend,
+        tools::{
+            hlskit_error::{HlsKitError, VideoProcessingErrors},
+            m3u8_tools::generate_master_playlist,
+        },
+        VideoInputType, VideoProcessorEncryptionSettings,
+    };
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct VideoProcessor<B>
+    where
+        B: VideoProcessingBackend + Default,
+    {
+        input_video_path: VideoInputType,
+        output_profiles: Vec<HlsVideoProcessingSettings>,
+        encryption_string: Option<VideoProcessorEncryptionSettings>,
+        backend: B,
+    }
+
+    impl<B> Default for VideoProcessor<B>
+    where
+        B: VideoProcessingBackend + Default,
+    {
+        fn default() -> Self {
+            Self {
+                input_video_path: Default::default(),
+                output_profiles: Default::default(),
+                encryption_string: Default::default(),
+                backend: Default::default(),
+            }
+        }
+    }
+
+    impl<B: VideoProcessingBackend + Default> VideoProcessor<B> {
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        pub fn with_video_input(mut self, video: VideoInputType) -> Self {
+            self.input_video_path = video;
+            self
+        }
+
+        pub fn with_output_profiles(mut self, profiles: Vec<HlsVideoProcessingSettings>) -> Self {
+            self.output_profiles = profiles;
+            self
+        }
+
+        pub fn with_encryption(mut self, encryption: VideoProcessorEncryptionSettings) -> Self {
+            self.encryption_string = Some(encryption);
+            self
+        }
+
+        pub fn with_backend(mut self, backend: B) -> Self {
+            self.backend = backend;
+            self
+        }
+
+        pub async fn process_video(&self) -> Result<HlsVideo, HlsKitError> {
+            // Input validation
+            match &self.input_video_path {
+                VideoInputType::FilePath(path) => {
+                    let valid_video_extensions = ["mp4", "mkv", "avi", "mov"];
+                    if path.is_empty() {
+                        return Err(HlsKitError::VideoProcessingError(
+                            VideoProcessingErrors::EmptyVideoInput,
+                        ));
+                    }
+                    let pathbuf = PathBuf::from(path);
+                    if !pathbuf.exists() {
+                        return Err(HlsKitError::VideoProcessingError(
+                            VideoProcessingErrors::FileNotFound,
+                        ));
+                    }
+                    if !pathbuf.is_file() {
+                        return Err(HlsKitError::VideoProcessingError(
+                            VideoProcessingErrors::InvalidVideoInput,
+                        ));
+                    }
+                    if !valid_video_extensions.contains(
+                        &pathbuf
+                            .extension()
+                            .unwrap_or(OsStr::new("invalid"))
+                            .to_str()
+                            .unwrap_or("invalid"),
+                    ) {
+                        return Err(HlsKitError::VideoProcessingError(
+                            VideoProcessingErrors::InvalidVideoInput,
+                        ));
+                    }
+                }
+                VideoInputType::InMemoryFile(video_data) => {
+                    if video_data.is_empty() {
+                        return Err(HlsKitError::VideoProcessingError(
+                            VideoProcessingErrors::EmptyVideoInput,
+                        ));
+                    }
+                }
+            }
+
+            let output_dir = TempDir::new()?;
+            let output_dir_path = output_dir.path();
+
+            let tasks: Vec<_> = self
+                .output_profiles
+                .iter()
+                .enumerate()
+                .map(|(index, profile)| {
+                    self.backend.process_profile(
+                        &self.input_video_path,
+                        profile,
+                        output_dir_path,
+                        index as i32,
+                        self.encryption_string.as_ref(),
+                    )
+                })
+                .collect();
+
+            let resolution_results: Vec<HlsVideoResolution> = try_join_all(tasks).await?;
+
+            let master_m3u8_data = generate_master_playlist(
+                output_dir_path,
+                resolution_results
+                    .iter()
+                    .map(|result| result.resolution)
+                    .collect(),
+                resolution_results
+                    .iter()
+                    .map(|result| result.playlist_name.as_str())
+                    .collect(),
+            )
+            .await?;
+
+            let hls_video = HlsVideo {
+                master_m3u8_data,
+                resolutions: resolution_results,
+            };
+
+            fs::remove_dir_all(output_dir_path)?;
+            Ok(hls_video)
+        }
+    }
 }
