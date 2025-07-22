@@ -249,30 +249,22 @@ async fn process_video_internal<V: VideoProcessingBackend>(
 ) -> Result<HlsVideo, HlsKitError> {
     let input_dir_guard = &input.validate()?;
 
-    let input_guard_temp_file = &input_dir_guard.temp_file;
-    let input_path = &input_dir_guard.path;
+    let temp_file_guard = input_dir_guard.temp_file.as_ref();
+
+    let input_path = match temp_file_guard {
+        Some(temp_file) => temp_file.path().to_string_lossy().to_string(),
+        None => input_dir_guard.path.clone(),
+    };
 
     let output_dir = TempDir::new()?;
     let output_dir_path = output_dir.path();
-
-    let input_dir = if input_guard_temp_file.is_some() {
-        input_guard_temp_file
-            .as_ref()
-            .unwrap()
-            .path()
-            .to_str()
-            .unwrap()
-            .to_string()
-    } else {
-        input_path.clone()
-    };
 
     let tasks: Vec<_> = output_profiles
         .iter()
         .enumerate()
         .map(|(index, profile)| {
             backend.process_profile(
-                input_dir.clone(),
+                input_path.clone(),
                 profile,
                 output_dir_path,
                 index as i32,
@@ -376,25 +368,17 @@ pub mod prelude {
         }
 
         pub async fn process_video(&self) -> Result<HlsVideo, HlsKitError> {
-            let input_dir_guard = &self.input_video_path.validate()?;
+            let input_guard = self.input_video_path.validate()?;
 
-            let input_guard_temp_file = &input_dir_guard.temp_file;
-            let input_path = &input_dir_guard.path;
+            let temp_file_guard = input_guard.temp_file.as_ref();
+
+            let input_path = match temp_file_guard {
+                Some(temp_file) => temp_file.path().to_string_lossy().to_string(),
+                None => input_guard.path.clone(),
+            };
 
             let output_dir = TempDir::new()?;
             let output_dir_path = output_dir.path();
-
-            let input_dir = if input_guard_temp_file.is_some() {
-                input_guard_temp_file
-                    .as_ref()
-                    .unwrap()
-                    .path()
-                    .to_str()
-                    .unwrap()
-                    .to_string()
-            } else {
-                input_path.clone()
-            };
 
             let tasks: Vec<_> = self
                 .output_profiles
@@ -402,7 +386,7 @@ pub mod prelude {
                 .enumerate()
                 .map(|(index, profile)| {
                     self.backend.process_profile(
-                        input_dir.clone(),
+                        input_path.clone(),
                         profile,
                         output_dir_path,
                         index as i32,
