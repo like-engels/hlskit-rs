@@ -39,25 +39,24 @@
  */
 
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use tempfile::NamedTempFile;
 use tokio::process::Command;
 
 use crate::models::hls_video::HlsVideoSegment;
 use crate::models::hls_video_processing_settings::HlsVideoProcessingSettings;
 use crate::tools::ffmpeg_command_builder::HlsOutputEncryptionConfig;
+use crate::VideoProcessorEncryptionSettings;
 use crate::{
     models::hls_video::HlsVideoResolution,
     tools::{ffmpeg_command_builder::FfmpegCommandBuilder, hlskit_error::HlsKitError},
 };
-use crate::{VideoInputType, VideoProcessorEncryptionSettings};
 
 pub trait VideoProcessingBackend {
     fn process_profile(
         &self,
-        input: &VideoInputType,
+        input: String,
         profile: &HlsVideoProcessingSettings,
         output_dir: &Path,
         stream_index: i32,
@@ -71,23 +70,12 @@ pub struct FfmpegBackend;
 impl VideoProcessingBackend for FfmpegBackend {
     async fn process_profile(
         &self,
-        input: &VideoInputType,
+        input: String,
         profile: &HlsVideoProcessingSettings,
         output_dir: &Path,
         stream_index: i32,
         encryption: Option<&VideoProcessorEncryptionSettings>,
     ) -> Result<HlsVideoResolution, HlsKitError> {
-        let mut temp_file = NamedTempFile::new()?;
-
-        let input_path = match input {
-            VideoInputType::InMemoryFile(bytes) => {
-                temp_file.write_all(bytes)?;
-                temp_file.flush()?;
-                temp_file.path().to_str().unwrap().to_string()
-            }
-            VideoInputType::FilePath(path) => path.clone(),
-        };
-
         let (width, height) = profile.resolution;
 
         let segment_filename = format!(
@@ -110,7 +98,7 @@ impl VideoProcessingBackend for FfmpegBackend {
         let encryption_key_url = encryption.map(|enc| enc.encryption_key_url.as_str());
 
         let command = FfmpegCommandBuilder::new()
-            .input(&input_path)
+            .input(&input)
             .dimensions(width, height)
             .crf(profile.constant_rate_factor)
             .preset(profile.preset.value())

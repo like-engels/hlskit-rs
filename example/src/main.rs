@@ -40,6 +40,7 @@
 use std::{env, fs::File, io::Read};
 
 use hlskit::{
+    VideoInputType,
     models::hls_video_processing_settings::{
         FfmpegVideoProcessingPreset, HlsVideoProcessingSettings,
     },
@@ -132,7 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Testing new API style");
 
-    let result3 = VideoProcessor::<FfmpegBackend>::new()
+    let result3 = VideoProcessor::<FfmpegBackend, VideoInputType>::new()
         .with_video_input(hlskit::VideoInputType::FilePath(
             "src/sample.mp4".to_string(),
         ))

@@ -38,56 +38,13 @@
  * The use of the unmodified library in proprietary software is governed solely by the LGPLv3.
  */
 
-use thiserror::Error;
+use crate::tools::hlskit_error::VideoValidatableErrors;
 
-#[derive(Error, Debug, Clone, PartialEq, Eq)]
-pub enum VideoValidatableErrors {
-    #[error("Invalid video format")]
-    InvalidFormat,
-    #[error("Empty video input")]
-    EmptyVideoInput,
-    #[error("Invalid video input: {error:?}")]
-    InvalidVideoInput { error: String },
-    #[error("File not found")]
-    FileNotFound,
+pub trait VideoValidatable {
+    fn validate(&self) -> Result<VideoInputPathGuard, VideoValidatableErrors>;
 }
 
-#[derive(Error, Debug, Clone, PartialEq, Eq)]
-pub enum VideoProcessingErrors {
-    #[error("Missing output file path")]
-    MissingOutputPath,
-    #[error("Unsupported video bitrate")]
-    UnsupportedBitrate,
-}
-
-#[derive(Debug, Error)]
-pub enum FfmpegCommandBuilderError {
-    #[error("Configuration Validation Error: {0}")]
-    ConfigurationError(String),
-    #[error("Command Build Error: {0}")]
-    BuildError(String),
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error("Conversion Error: {0}")]
-    ConversionError(String),
-    #[error("Unexpected Internal State: {0}")]
-    InternalStateError(String),
-    #[error("FFmpeg specific setting error: {0}")]
-    FfmpegSettingError(String),
-}
-
-#[derive(Error, Debug)]
-pub enum HlsKitError {
-    #[error(transparent)]
-    IO(#[from] std::io::Error),
-    #[error(transparent)]
-    FFMPEGBUILDER(#[from] FfmpegCommandBuilderError),
-    #[error(transparent)]
-    VideoProcessingError(#[from] VideoProcessingErrors),
-    #[error(transparent)]
-    VideoValidationError(#[from] VideoValidatableErrors),
-    #[error("[HlsKit] Failed to spawn Ffmpeg: {error:?}")]
-    FfmpegError { error: String },
-    #[error("File {file_path:?} not found")]
-    FileNotFound { file_path: String },
+pub struct VideoInputPathGuard {
+    pub path: String,
+    pub temp_file: Option<tempfile::NamedTempFile>,
 }
