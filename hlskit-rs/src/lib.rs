@@ -38,7 +38,8 @@
  * The use of the unmodified library in proprietary software is governed solely by the LGPLv3.
  */
 
-use std::fs;
+use std::io::{Read, Write};
+use std::{ffi::OsStr, fs, path::PathBuf};
 
 use futures::future::try_join_all;
 use models::{
@@ -49,16 +50,131 @@ use models::{
 use tempfile::TempDir;
 use tools::{hlskit_error::HlsKitError, m3u8_tools::generate_master_playlist};
 
-use crate::services::hls_video_processing_service::{FfmpegBackend, VideoProcessingBackend};
+use crate::{
+    services::hls_video_processing_service::{FfmpegBackend, VideoProcessingBackend},
+    tools::hlskit_error::VideoValidatableErrors,
+    traits::video_validatable::{VideoInputPathGuard, VideoValidatable},
+};
 
 pub mod models;
 pub mod services;
 pub mod tools;
+pub mod traits;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VideoInputType {
     InMemoryFile(Vec<u8>),
     FilePath(String),
+}
+
+impl VideoValidatable for VideoInputType {
+    fn validate(&self) -> Result<VideoInputPathGuard, VideoValidatableErrors> {
+        fn is_valid_magic_bytes(buf: &[u8], ext: &str) -> bool {
+            match ext {
+                "mp4" | "mov" => buf.len() >= 8 && &buf[4..8] == b"ftyp",
+                "mkv" => buf.len() >= 4 && &buf[0..4] == b"\x1A\x45\xDF\xA3",
+                "avi" => buf.len() >= 12 && &buf[0..4] == b"RIFF" && &buf[8..12] == b"AVI ",
+                _ => false,
+            }
+        }
+
+        let valid_video_extensions = ["mp4", "mkv", "avi", "mov"];
+
+        match &self {
+            VideoInputType::InMemoryFile(video_data) => {
+                if video_data.is_empty() {
+                    return Err(VideoValidatableErrors::EmptyVideoInput);
+                }
+
+                let mut valid = false;
+                for ext in &valid_video_extensions {
+                    if is_valid_magic_bytes(video_data, ext) {
+                        valid = true;
+                        break;
+                    }
+                }
+
+                if !valid {
+                    return Err(VideoValidatableErrors::InvalidFormat);
+                }
+
+                let mut temp_file = tempfile::NamedTempFile::new().map_err(|_| {
+                    VideoValidatableErrors::InvalidVideoInput {
+                        error: "Failed to create temp file".to_string(),
+                    }
+                })?;
+
+                temp_file.write_all(video_data).map_err(|_| {
+                    VideoValidatableErrors::InvalidVideoInput {
+                        error: "Failed to write to temp file".to_string(),
+                    }
+                })?;
+
+                let path = temp_file.path().to_str().unwrap().to_string();
+                Ok(VideoInputPathGuard {
+                    path,
+                    temp_file: Some(temp_file),
+                })
+            }
+            VideoInputType::FilePath(path) => {
+                if path.is_empty() {
+                    return Err(VideoValidatableErrors::EmptyVideoInput);
+                }
+
+                let pathbuf = PathBuf::from(path);
+
+                if !pathbuf.exists() {
+                    return Err(VideoValidatableErrors::FileNotFound);
+                }
+
+                if !pathbuf.is_file() {
+                    return Err(VideoValidatableErrors::InvalidVideoInput {
+                        error: "The given video is not a file".to_string(),
+                    });
+                }
+
+                let ext = pathbuf
+                    .extension()
+                    .unwrap_or(OsStr::new("invalid"))
+                    .to_str()
+                    .unwrap_or("invalid")
+                    .to_lowercase();
+
+                if !valid_video_extensions.contains(&ext.as_str()) {
+                    return Err(VideoValidatableErrors::InvalidVideoInput {
+                        error: "The given video hasn't a valid extension".to_string(),
+                    });
+                }
+
+                let mut file = match std::fs::File::open(&pathbuf) {
+                    Ok(f) => f,
+                    Err(_) => {
+                        return Err(VideoValidatableErrors::FileNotFound);
+                    }
+                };
+
+                let mut buf = [0u8; 16];
+
+                let n = match file.read(&mut buf) {
+                    Ok(n) => n,
+                    Err(_) => {
+                        return Err(VideoValidatableErrors::InvalidVideoInput {
+                            error: "Failed to read video file for validation".to_string(),
+                        });
+                    }
+                };
+
+                if !is_valid_magic_bytes(&buf[..n], &ext) {
+                    return Err(VideoValidatableErrors::InvalidFormat);
+                }
+
+                Ok(VideoInputPathGuard {
+                    path: path.clone(),
+                    temp_file: None,
+                })
+            }
+        }
+    }
 }
 
 impl Default for VideoInputType {
@@ -131,6 +247,15 @@ async fn process_video_internal<V: VideoProcessingBackend>(
     encryption: Option<VideoProcessorEncryptionSettings>,
     backend: V,
 ) -> Result<HlsVideo, HlsKitError> {
+    let input_dir_guard = &input.validate()?;
+
+    let temp_file_guard = input_dir_guard.temp_file.as_ref();
+
+    let input_path = match temp_file_guard {
+        Some(temp_file) => temp_file.path().to_string_lossy().to_string(),
+        None => input_dir_guard.path.clone(),
+    };
+
     let output_dir = TempDir::new()?;
     let output_dir_path = output_dir.path();
 
@@ -139,7 +264,7 @@ async fn process_video_internal<V: VideoProcessingBackend>(
         .enumerate()
         .map(|(index, profile)| {
             backend.process_profile(
-                &input,
+                input_path.clone(),
                 profile,
                 output_dir_path,
                 index as i32,
@@ -174,7 +299,7 @@ async fn process_video_internal<V: VideoProcessingBackend>(
 
 #[cfg(feature = "zenpulse-api")]
 pub mod prelude {
-    use std::{ffi::OsStr, fs, path::PathBuf};
+    use std::fs;
 
     use futures::future::try_join_all;
     use tempfile::TempDir;
@@ -185,27 +310,27 @@ pub mod prelude {
             hls_video_processing_settings::HlsVideoProcessingSettings,
         },
         services::hls_video_processing_service::VideoProcessingBackend,
-        tools::{
-            hlskit_error::{HlsKitError, VideoProcessingErrors},
-            m3u8_tools::generate_master_playlist,
-        },
-        VideoInputType, VideoProcessorEncryptionSettings,
+        tools::{hlskit_error::HlsKitError, m3u8_tools::generate_master_playlist},
+        traits::video_validatable::VideoValidatable,
+        VideoProcessorEncryptionSettings,
     };
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct VideoProcessor<B>
+    pub struct VideoProcessor<B, S>
     where
         B: VideoProcessingBackend + Default,
+        S: VideoValidatable + Default,
     {
-        input_video_path: VideoInputType,
+        input_video_path: S,
         output_profiles: Vec<HlsVideoProcessingSettings>,
         encryption_string: Option<VideoProcessorEncryptionSettings>,
         backend: B,
     }
 
-    impl<B> Default for VideoProcessor<B>
+    impl<B, S> Default for VideoProcessor<B, S>
     where
         B: VideoProcessingBackend + Default,
+        S: VideoValidatable + Default,
     {
         fn default() -> Self {
             Self {
@@ -217,12 +342,12 @@ pub mod prelude {
         }
     }
 
-    impl<B: VideoProcessingBackend + Default> VideoProcessor<B> {
+    impl<B: VideoProcessingBackend + Default, S: VideoValidatable + Default> VideoProcessor<B, S> {
         pub fn new() -> Self {
             Self::default()
         }
 
-        pub fn with_video_input(mut self, video: VideoInputType) -> Self {
+        pub fn with_video_input(mut self, video: S) -> Self {
             self.input_video_path = video;
             self
         }
@@ -243,46 +368,14 @@ pub mod prelude {
         }
 
         pub async fn process_video(&self) -> Result<HlsVideo, HlsKitError> {
-            // Input validation
-            match &self.input_video_path {
-                VideoInputType::FilePath(path) => {
-                    let valid_video_extensions = ["mp4", "mkv", "avi", "mov"];
-                    if path.is_empty() {
-                        return Err(HlsKitError::VideoProcessingError(
-                            VideoProcessingErrors::EmptyVideoInput,
-                        ));
-                    }
-                    let pathbuf = PathBuf::from(path);
-                    if !pathbuf.exists() {
-                        return Err(HlsKitError::VideoProcessingError(
-                            VideoProcessingErrors::FileNotFound,
-                        ));
-                    }
-                    if !pathbuf.is_file() {
-                        return Err(HlsKitError::VideoProcessingError(
-                            VideoProcessingErrors::InvalidVideoInput,
-                        ));
-                    }
-                    if !valid_video_extensions.contains(
-                        &pathbuf
-                            .extension()
-                            .unwrap_or(OsStr::new("invalid"))
-                            .to_str()
-                            .unwrap_or("invalid"),
-                    ) {
-                        return Err(HlsKitError::VideoProcessingError(
-                            VideoProcessingErrors::InvalidVideoInput,
-                        ));
-                    }
-                }
-                VideoInputType::InMemoryFile(video_data) => {
-                    if video_data.is_empty() {
-                        return Err(HlsKitError::VideoProcessingError(
-                            VideoProcessingErrors::EmptyVideoInput,
-                        ));
-                    }
-                }
-            }
+            let input_guard = self.input_video_path.validate()?;
+
+            let temp_file_guard = input_guard.temp_file.as_ref();
+
+            let input_path = match temp_file_guard {
+                Some(temp_file) => temp_file.path().to_string_lossy().to_string(),
+                None => input_guard.path.clone(),
+            };
 
             let output_dir = TempDir::new()?;
             let output_dir_path = output_dir.path();
@@ -293,7 +386,7 @@ pub mod prelude {
                 .enumerate()
                 .map(|(index, profile)| {
                     self.backend.process_profile(
-                        &self.input_video_path,
+                        input_path.clone(),
                         profile,
                         output_dir_path,
                         index as i32,
