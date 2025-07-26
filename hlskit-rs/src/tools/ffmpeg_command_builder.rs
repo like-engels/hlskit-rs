@@ -40,7 +40,10 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::tools::hlskit_error::FfmpegCommandBuilderError;
+use crate::tools::{
+    hlskit_error::FfmpegCommandBuilderError,
+    internals::hls_output_config::{HlsOutputConfig, HlsOutputEncryptionConfig},
+};
 
 #[derive(Debug, Default)]
 pub struct FfmpegCommand {
@@ -51,21 +54,6 @@ pub struct FfmpegCommand {
     crf: i32,
     preset: String,
     hls_config: Option<HlsOutputConfig>,
-}
-
-#[derive(Debug)]
-struct HlsOutputConfig {
-    segment_filename_pattern: String,
-    playlist_type: Option<String>,
-    encryption_config: Option<HlsOutputEncryptionConfig>,
-    base_url: Option<String>,
-    hls_time: i32,
-}
-
-#[derive(Debug)]
-pub struct HlsOutputEncryptionConfig {
-    pub encryption_key_path: String,
-    pub iv: Option<String>,
 }
 
 impl FfmpegCommand {

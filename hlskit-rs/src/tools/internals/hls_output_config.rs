@@ -38,9 +38,17 @@
  * The use of the unmodified library in proprietary software is governed solely by the LGPLv3.
  */
 
-pub mod ffmpeg_command_builder;
-pub mod gstreamer_command_builder;
-pub mod hlskit_error;
-pub mod internals;
-pub mod m3u8_tools;
-pub mod segment_tools;
+#[derive(Debug, Clone)]
+pub struct HlsOutputConfig {
+    pub segment_filename_pattern: String,
+    pub playlist_type: Option<String>,
+    pub encryption_config: Option<HlsOutputEncryptionConfig>,
+    pub base_url: Option<String>,
+    pub hls_time: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct HlsOutputEncryptionConfig {
+    pub encryption_key_path: String,
+    pub iv: Option<String>,
+}

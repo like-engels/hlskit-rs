@@ -47,8 +47,8 @@ use crate::{
         hls_video::HlsVideoResolution, hls_video_processing_settings::HlsVideoProcessingSettings,
     },
     tools::{
-        ffmpeg_command_builder::{FfmpegCommandBuilder, HlsOutputEncryptionConfig},
-        hlskit_error::HlsKitError,
+        ffmpeg_command_builder::FfmpegCommandBuilder, hlskit_error::HlsKitError,
+        internals::hls_output_config::HlsOutputEncryptionConfig,
         segment_tools::read_playlist_and_segments,
     },
     traits::video_processing_backend::VideoProcessingBackend,

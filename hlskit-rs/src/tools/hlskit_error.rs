@@ -76,6 +76,20 @@ pub enum FfmpegCommandBuilderError {
     FfmpegSettingError(String),
 }
 
+#[derive(Debug, Error)]
+pub enum GStreamerCommandBuilderError {
+    #[error("Invalid dimensions: {0}")]
+    InvalidDimensions(String),
+    #[error("Invalid bitrate: {0}")]
+    InvalidBitrate(String),
+    #[error("Invalid configuration: {0}")]
+    InvalidConfig(String),
+    #[error("Missing input")]
+    MissingInput,
+    #[error("Missing output")]
+    MissingOutput,
+}
+
 #[derive(Error, Debug)]
 pub enum HlsKitError {
     #[error(transparent)]
@@ -83,11 +97,15 @@ pub enum HlsKitError {
     #[error(transparent)]
     FFMPEGBUILDER(#[from] FfmpegCommandBuilderError),
     #[error(transparent)]
+    GSTREAMERBUILDER(#[from] GStreamerCommandBuilderError),
+    #[error(transparent)]
     VideoProcessingError(#[from] VideoProcessingErrors),
     #[error(transparent)]
     VideoValidationError(#[from] VideoValidatableErrors),
     #[error("[HlsKit] Failed to spawn Ffmpeg: {error:?}")]
     FfmpegError { error: String },
+    #[error("[HlsKit] Failed to spawn GStreamer: {error:?}")]
+    GstreamerError { error: String },
     #[error("File {file_path:?} not found")]
     FileNotFound { file_path: String },
 }
