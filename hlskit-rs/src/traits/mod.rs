@@ -38,4 +38,5 @@
  * The use of the unmodified library in proprietary software is governed solely by the LGPLv3.
  */
 
+pub mod video_processing_backend;
 pub mod video_validatable;

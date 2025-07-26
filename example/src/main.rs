@@ -41,12 +41,12 @@ use std::{env, fs::File, io::Read};
 
 use hlskit::{
     VideoInputType,
+    backends::ffmpeg_backend::FfmpegBackend,
     models::hls_video_processing_settings::{
         FfmpegVideoProcessingPreset, HlsVideoProcessingSettings,
     },
     prelude::VideoProcessor,
     process_video, process_video_from_path,
-    services::hls_video_processing_service::FfmpegBackend,
 };
 
 #[tokio::main]
