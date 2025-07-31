@@ -38,17 +38,15 @@
  * The use of the unmodified library in proprietary software is governed solely by the LGPLv3.
  */
 
-use std::{path::Path, process::Stdio};
-
-use tokio::process::Command;
+use std::path::Path;
 
 use crate::{
     models::{
         hls_video::HlsVideoResolution, hls_video_processing_settings::HlsVideoProcessingSettings,
     },
     tools::{
-        gstreamer_command_builder::GStreamerCommandBuilder, hlskit_error::HlsKitError,
-        internals::hls_output_config::HlsOutputEncryptionConfig,
+        command_runner::run_command, gstreamer_command_builder::GStreamerCommandBuilder,
+        hlskit_error::HlsKitError, internals::hls_output_config::HlsOutputEncryptionConfig,
         segment_tools::read_playlist_and_segments,
     },
     traits::video_processing_backend::VideoProcessingBackend,
@@ -102,7 +100,16 @@ impl VideoProcessingBackend for GStreamerBackend {
             .output(&playlist_filename)
             .build()?;
 
-        run_gstreamer_command(&command).await?;
+        let gtreamer_pipeline: &Vec<String> = &command
+            .iter()
+            .flat_map(|arg| {
+                arg.split_whitespace()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+
+        run_command(&gtreamer_pipeline).await?;
 
         let resolution = read_playlist_and_segments(
             &playlist_filename,
@@ -113,31 +120,4 @@ impl VideoProcessingBackend for GStreamerBackend {
 
         Ok(resolution)
     }
-}
-
-async fn run_gstreamer_command(command: &[String]) -> Result<(), HlsKitError> {
-    let process = Command::new(&command[0])
-        .args(&command[1..])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| HlsKitError::GstreamerError {
-            error: e.to_string(),
-        })?;
-
-    let output = process
-        .wait_with_output()
-        .await
-        .map_err(|e| HlsKitError::GstreamerError {
-            error: format!("Failed to capture GStreamer output: {e}"),
-        })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(HlsKitError::GstreamerError {
-            error: format!("GStreamer failed: {stderr}"),
-        });
-    }
-    Ok(())
 }

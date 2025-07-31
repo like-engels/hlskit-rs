@@ -38,10 +38,44 @@
  * The use of the unmodified library in proprietary software is governed solely by the LGPLv3.
  */
 
-pub mod command_runner;
-pub mod ffmpeg_command_builder;
-pub mod gstreamer_command_builder;
-pub mod hlskit_error;
-pub mod internals;
-pub mod m3u8_tools;
-pub mod segment_tools;
+use std::process::Stdio;
+
+use tokio::process::Command;
+
+use crate::tools::hlskit_error::HlsKitError;
+
+#[tracing::instrument]
+pub async fn run_command(command: &[String]) -> Result<(), HlsKitError> {
+    tracing::debug!("[DEBUG] Running command: {}", command.join(" "));
+
+    let process = Command::new(&command[0])
+        .args(&command[1..])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| {
+            tracing::error!("Failed to spawn command '{}': {}", command[0], e);
+
+            HlsKitError::CommandExecutionError {
+                error: e.to_string(),
+            }
+        })?;
+
+    let output = process.wait_with_output().await.map_err(|e| {
+        tracing::error!("Failed to spawn command '{}': {}", command[0], e);
+
+        HlsKitError::CommandExecutionError {
+            error: format!("Failed to capture GStreamer output: {e}"),
+        }
+    })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::error!("Failed to spawn command '{}': {}", command[0], stderr);
+        return Err(HlsKitError::CommandExecutionError {
+            error: format!("GStreamer failed: {stderr}"),
+        });
+    }
+    Ok(())
+}

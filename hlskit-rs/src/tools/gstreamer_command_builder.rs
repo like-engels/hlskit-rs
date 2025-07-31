@@ -184,14 +184,7 @@ impl GStreamerCommand {
         if let Some(hls) = &self.hls_config {
             args.push("! hlssink".to_string());
 
-            // Derive playlist path from segment pattern
-            if let Some(playlist_path) = hls
-                .segment_filename_pattern
-                .rfind('/')
-                .map(|i| format!("{}.m3u8", &hls.segment_filename_pattern[..i]))
-            {
-                args.push(format!("playlist-location={}", playlist_path));
-            }
+            args.push(format!("playlist-location={}", self.output_path.display()));
 
             args.push(format!("location={}", hls.segment_filename_pattern));
             args.push(format!("target-duration={}", hls.hls_time));

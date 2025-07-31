@@ -106,6 +106,8 @@ pub enum HlsKitError {
     FfmpegError { error: String },
     #[error("[HlsKit] Failed to spawn GStreamer: {error:?}")]
     GstreamerError { error: String },
+    #[error("Something went wrong while executing the command: {error:?}")]
+    CommandExecutionError { error: String },
     #[error("File {file_path:?} not found")]
     FileNotFound { file_path: String },
 }

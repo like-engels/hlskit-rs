@@ -38,17 +38,15 @@
  * The use of the unmodified library in proprietary software is governed solely by the LGPLv3.
  */
 
-use std::{path::Path, process::Stdio};
-
-use tokio::process::Command;
+use std::path::Path;
 
 use crate::{
     models::{
         hls_video::HlsVideoResolution, hls_video_processing_settings::HlsVideoProcessingSettings,
     },
     tools::{
-        ffmpeg_command_builder::FfmpegCommandBuilder, hlskit_error::HlsKitError,
-        internals::hls_output_config::HlsOutputEncryptionConfig,
+        command_runner::run_command, ffmpeg_command_builder::FfmpegCommandBuilder,
+        hlskit_error::HlsKitError, internals::hls_output_config::HlsOutputEncryptionConfig,
         segment_tools::read_playlist_and_segments,
     },
     traits::video_processing_backend::VideoProcessingBackend,
@@ -104,7 +102,7 @@ impl VideoProcessingBackend for FfmpegBackend {
             .build()?;
 
         // Execute the FFmpeg command
-        run_ffmpeg_command(&command).await?;
+        run_command(&command).await?;
 
         // Read the generated playlist and segments into memory
         let resolution = read_playlist_and_segments(
@@ -116,31 +114,4 @@ impl VideoProcessingBackend for FfmpegBackend {
 
         Ok(resolution)
     }
-}
-
-async fn run_ffmpeg_command(command: &[String]) -> Result<(), HlsKitError> {
-    let process = Command::new(&command[0])
-        .args(&command[1..])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| HlsKitError::FfmpegError {
-            error: e.to_string(),
-        })?;
-
-    let output = process
-        .wait_with_output()
-        .await
-        .map_err(|e| HlsKitError::FfmpegError {
-            error: format!("Failed to capture FFmpeg output: {e}"),
-        })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(HlsKitError::FfmpegError {
-            error: format!("FFmpeg failed: {stderr}"),
-        });
-    }
-    Ok(())
 }
