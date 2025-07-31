@@ -50,14 +50,15 @@ use models::{
 use tempfile::TempDir;
 use tools::{hlskit_error::HlsKitError, m3u8_tools::generate_master_playlist};
 
+use crate::backends::ffmpeg_backend::FfmpegBackend;
+use crate::traits::video_processing_backend::VideoProcessingBackend;
 use crate::{
-    services::hls_video_processing_service::{FfmpegBackend, VideoProcessingBackend},
     tools::hlskit_error::VideoValidatableErrors,
     traits::video_validatable::{VideoInputPathGuard, VideoValidatable},
 };
 
+pub mod backends;
 pub mod models;
-pub mod services;
 pub mod tools;
 pub mod traits;
 
@@ -309,9 +310,10 @@ pub mod prelude {
             hls_video::{HlsVideo, HlsVideoResolution},
             hls_video_processing_settings::HlsVideoProcessingSettings,
         },
-        services::hls_video_processing_service::VideoProcessingBackend,
         tools::{hlskit_error::HlsKitError, m3u8_tools::generate_master_playlist},
-        traits::video_validatable::VideoValidatable,
+        traits::{
+            video_processing_backend::VideoProcessingBackend, video_validatable::VideoValidatable,
+        },
         VideoProcessorEncryptionSettings,
     };
 

@@ -38,31 +38,20 @@
  * The use of the unmodified library in proprietary software is governed solely by the LGPLv3.
  */
 
-use std::fs::File;
-use std::io::Read;
-use std::path::{Path, PathBuf};
-use std::process::Stdio;
-use tokio::process::Command;
+use std::path::Path;
 
-use crate::models::hls_video::HlsVideoSegment;
-use crate::models::hls_video_processing_settings::HlsVideoProcessingSettings;
-use crate::tools::ffmpeg_command_builder::HlsOutputEncryptionConfig;
-use crate::VideoProcessorEncryptionSettings;
 use crate::{
-    models::hls_video::HlsVideoResolution,
-    tools::{ffmpeg_command_builder::FfmpegCommandBuilder, hlskit_error::HlsKitError},
+    models::{
+        hls_video::HlsVideoResolution, hls_video_processing_settings::HlsVideoProcessingSettings,
+    },
+    tools::{
+        command_runner::run_command, ffmpeg_command_builder::FfmpegCommandBuilder,
+        hlskit_error::HlsKitError, internals::hls_output_config::HlsOutputEncryptionConfig,
+        segment_tools::read_playlist_and_segments,
+    },
+    traits::video_processing_backend::VideoProcessingBackend,
+    VideoProcessorEncryptionSettings,
 };
-
-pub trait VideoProcessingBackend {
-    fn process_profile(
-        &self,
-        input: String,
-        profile: &HlsVideoProcessingSettings,
-        output_dir: &Path,
-        stream_index: i32,
-        encryption: Option<&VideoProcessorEncryptionSettings>,
-    ) -> impl std::future::Future<Output = Result<HlsVideoResolution, HlsKitError>>;
-}
 
 #[derive(Default)]
 pub struct FfmpegBackend;
@@ -113,7 +102,7 @@ impl VideoProcessingBackend for FfmpegBackend {
             .build()?;
 
         // Execute the FFmpeg command
-        run_ffmpeg_command(&command).await?;
+        run_command(&command).await?;
 
         // Read the generated playlist and segments into memory
         let resolution = read_playlist_and_segments(
@@ -125,71 +114,4 @@ impl VideoProcessingBackend for FfmpegBackend {
 
         Ok(resolution)
     }
-}
-
-async fn run_ffmpeg_command(command: &[String]) -> Result<(), HlsKitError> {
-    let process = Command::new(&command[0])
-        .args(&command[1..])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| HlsKitError::FfmpegError {
-            error: e.to_string(),
-        })?;
-
-    let output = process
-        .wait_with_output()
-        .await
-        .map_err(|e| HlsKitError::FfmpegError {
-            error: format!("Failed to capture FFmpeg output: {e}"),
-        })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(HlsKitError::FfmpegError {
-            error: format!("FFmpeg failed: {stderr}"),
-        });
-    }
-    Ok(())
-}
-
-fn read_playlist_and_segments(
-    playlist_filename: &str,
-    segment_filename: &str,
-    resolution: (i32, i32),
-    stream_index: i32,
-) -> Result<HlsVideoResolution, HlsKitError> {
-    let mut resolution = HlsVideoResolution {
-        resolution,
-        playlist_name: format!("playlist_{stream_index}.m3u8"),
-        playlist_data: Vec::new(),
-        segments: Vec::new(),
-    };
-
-    // Read the playlist file
-    let mut playlist_file = File::open(playlist_filename)?;
-    playlist_file.read_to_end(&mut resolution.playlist_data)?;
-
-    // Read all segment files
-    let mut segment_index = 0;
-    loop {
-        let segment_path = segment_filename.replace("%03d", &format!("{segment_index:03}"));
-        if !PathBuf::from(&segment_path).exists() {
-            break;
-        }
-
-        let mut segment_file = File::open(&segment_path)?;
-        let mut segment_data = Vec::new();
-        segment_file.read_to_end(&mut segment_data)?;
-
-        let segment = HlsVideoSegment {
-            segment_name: format!("data_{stream_index}_{segment_index:03}.ts"),
-            segment_data,
-        };
-        resolution.segments.push(segment);
-        segment_index += 1;
-    }
-
-    Ok(resolution)
 }

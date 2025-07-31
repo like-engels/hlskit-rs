@@ -38,10 +38,23 @@
  * The use of the unmodified library in proprietary software is governed solely by the LGPLv3.
  */
 
-pub mod command_runner;
-pub mod ffmpeg_command_builder;
-pub mod gstreamer_command_builder;
-pub mod hlskit_error;
-pub mod internals;
-pub mod m3u8_tools;
-pub mod segment_tools;
+use std::path::Path;
+
+use crate::{
+    models::{
+        hls_video::HlsVideoResolution, hls_video_processing_settings::HlsVideoProcessingSettings,
+    },
+    tools::hlskit_error::HlsKitError,
+    VideoProcessorEncryptionSettings,
+};
+
+pub trait VideoProcessingBackend {
+    fn process_profile(
+        &self,
+        input: String,
+        profile: &HlsVideoProcessingSettings,
+        output_dir: &Path,
+        stream_index: i32,
+        encryption: Option<&VideoProcessorEncryptionSettings>,
+    ) -> impl std::future::Future<Output = Result<HlsVideoResolution, HlsKitError>>;
+}
