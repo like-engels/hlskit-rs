@@ -204,14 +204,14 @@ impl GStreamerCommand {
                         key_uri.push('/');
                     }
                     key_uri.push_str(&key_filename);
-                    args.push(format!("key-uri={}", key_uri));
+                    args.push(format!("key-uri={key_uri}"));
                 } else {
                     // Fallback to just using the filename
-                    args.push(format!("key-uri={}", key_filename));
+                    args.push(format!("key-uri={key_filename}"));
                 }
 
                 if let Some(iv) = &enc.iv {
-                    args.push(format!("iv={}", iv));
+                    args.push(format!("iv={iv}"));
                 }
             }
         } else {

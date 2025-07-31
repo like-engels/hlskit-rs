@@ -109,7 +109,7 @@ impl VideoProcessingBackend for GStreamerBackend {
             })
             .collect();
 
-        run_command(&gtreamer_pipeline).await?;
+        run_command(gtreamer_pipeline).await?;
 
         let resolution = read_playlist_and_segments(
             &playlist_filename,
