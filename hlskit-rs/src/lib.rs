@@ -58,6 +58,10 @@ use crate::{
 };
 
 pub mod backends;
+
+#[cfg(feature = "native-bindings")]
+pub mod bindings;
+
 pub mod models;
 pub mod tools;
 pub mod traits;
