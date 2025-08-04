@@ -16,8 +16,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install ffmpeg system libraries
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install FFmpeg development libraries
+        run: |
+          sudo apt install -y \
+            libavcodec-dev \
+            libavutil-dev \
+            libavformat-dev \
+            libavfilter-dev \
+            libavdevice-dev
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
@@ -56,6 +62,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install FFmpeg development libraries
+        run: |
+          sudo apt install -y \
+            libavcodec-dev \
+            libavutil-dev \
+            libavformat-dev \
+            libavfilter-dev \
+            libavdevice-dev
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
