@@ -38,6 +38,9 @@
  * The use of the unmodified library in proprietary software is governed solely by the LGPLv3.
  */
 
+#[cfg(feature = "native-bindings")]
+use ffmpeg_next::Error;
+
 use thiserror::Error;
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
@@ -110,4 +113,8 @@ pub enum HlsKitError {
     CommandExecutionError { error: String },
     #[error("File {file_path:?} not found")]
     FileNotFound { file_path: String },
+
+    #[cfg(feature = "native-bindings")]
+    #[error(transparent)]
+    FfmpegAPIError(#[from] Error),
 }
