@@ -8,6 +8,11 @@ Wanna contribute? Check [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ---
 
+## HlsKit 0.3.0 Released!!!
+HlsKit received an overhaul of new features and improvements. Also a new wiki is available at [HlsKit HandBook](https://github.com/like-engels/hlskit-rs/wiki).
+
+Check all the new features and improvements and keep HslKit updated.
+
 ## HlsKit 0.2.0 Released!!!
 HlsKit now supports AES-128 HLS segment encryption by providing a key file and a custom initialization vector (IV).
 
