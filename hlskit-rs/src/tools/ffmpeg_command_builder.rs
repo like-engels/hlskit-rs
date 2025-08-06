@@ -39,23 +39,11 @@
  */
 
 use std::path::{Path, PathBuf};
-use thiserror::Error;
 
-#[derive(Debug, Error)]
-pub enum FfmpegCommandBuilderError {
-    #[error("Configuration Validation Error: {0}")]
-    ConfigurationError(String),
-    #[error("Command Build Error: {0}")]
-    BuildError(String),
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error("Conversion Error: {0}")]
-    ConversionError(String),
-    #[error("Unexpected Internal State: {0}")]
-    InternalStateError(String),
-    #[error("FFmpeg specific setting error: {0}")]
-    FfmpegSettingError(String),
-}
+use crate::tools::{
+    hlskit_error::FfmpegCommandBuilderError,
+    internals::hls_output_config::{HlsOutputConfig, HlsOutputEncryptionConfig},
+};
 
 #[derive(Debug, Default)]
 pub struct FfmpegCommand {
@@ -66,21 +54,6 @@ pub struct FfmpegCommand {
     crf: i32,
     preset: String,
     hls_config: Option<HlsOutputConfig>,
-}
-
-#[derive(Debug)]
-struct HlsOutputConfig {
-    segment_filename_pattern: String,
-    playlist_type: Option<String>,
-    encryption_config: Option<HlsOutputEncryptionConfig>,
-    base_url: Option<String>,
-    hls_time: i32,
-}
-
-#[derive(Debug)]
-pub struct HlsOutputEncryptionConfig {
-    pub encryption_key_path: String,
-    pub iv: Option<String>,
 }
 
 impl FfmpegCommand {
@@ -180,8 +153,7 @@ impl FfmpegCommandBuilder {
         if !(0..=51).contains(&value) {
             self.build_errors
                 .push(FfmpegCommandBuilderError::FfmpegSettingError(format!(
-                    "CRF value {} is outside the standard range [0-51].",
-                    value
+                    "CRF value {value} is outside the standard range [0-51]."
                 )));
         }
         self.command.crf = value;
@@ -203,8 +175,7 @@ impl FfmpegCommandBuilder {
         if !valid_presets.contains(&name) {
             self.build_errors
                 .push(FfmpegCommandBuilderError::FfmpegSettingError(format!(
-                    "Preset '{}' is not a recognized FFmpeg preset.",
-                    name
+                    "Preset '{name}' is not a recognized FFmpeg preset.",
                 )));
         }
         self.command.preset = name.to_string();

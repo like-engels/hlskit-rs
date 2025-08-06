@@ -4,20 +4,18 @@ All notable changes to HlsKit will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.2.0
+## 0.3.0
 
 ### Added
 
-- New HLS AES-128 encryption support
-- Custom audio codec support
-- Custom audio bitrate support
+- GStreamer backend support
+- New API Style (activate it by enabling the zenpulse-api feature)
+- Video validation using Magic Bytes
 
 ### Changed
 
-- Refactored Ffmpeg codebase with a new command builder to dynamically build Ffmpeg commands based on the provided settings.
-- Added encryption settings to Ffmpeg command builder, now supports AES-128 encryption.
-- Added support for custom video codec and bitrate settings within the `HlsVideoProcessingSettings` struct.
-- Started codebase improvements to decouple Ffmpeg and open to new backends such as GStreamer.
+- Code & architectural improvements and security fixes
+- Improved error handling
 
 ### Deprecated
 
@@ -33,9 +31,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Security
 
-- N/A
+- Updated dependencies to mitigate security vulnerabilities
 
-## 1.0.3
+## 0.2.0
+
+### Added
+
+- New HLS AES-128 encryption support
+- Custom audio codec support
+- Custom audio bitrate support
+
+### Changed
+
+- Refactored Ffmpeg codebase with a new command builder to dynamically build Ffmpeg commands based on the provided settings.
+- Added encryption settings to Ffmpeg command builder, now supports AES-128 encryption.
+- Added support for custom video codec and bitrate settings within the `HlsVideoProcessingSettings` struct.
+- Started codebase improvements to decouple Ffmpeg and open to new backends such as GStreamer.
+
+## 0.1.3
 
 ### Added
 

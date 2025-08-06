@@ -38,52 +38,23 @@
  * The use of the unmodified library in proprietary software is governed solely by the LGPLv3.
  */
 
-use std::{
-    fs::File,
-    io::{Read, Write},
-    path::Path,
+use std::path::Path;
+
+use crate::{
+    models::{
+        hls_video::HlsVideoResolution, hls_video_processing_settings::HlsVideoProcessingSettings,
+    },
+    tools::hlskit_error::HlsKitError,
+    VideoProcessorEncryptionSettings,
 };
 
-use super::hlskit_error::HlsKitError;
-
-pub async fn generate_master_playlist(
-    output_dir: &Path,
-    resolutions: Vec<(i32, i32)>,
-    playlist_filenames: Vec<&str>,
-) -> Result<Vec<u8>, HlsKitError> {
-    if !output_dir.exists() {
-        return Err(HlsKitError::FileNotFound {
-            file_path: output_dir.to_string_lossy().into_owned(),
-        });
-    }
-
-    let master_playlist_path = output_dir.join("master.m3u8");
-
-    {
-        // Scope for the write handle
-        let mut master_playlist_handler = File::create(&master_playlist_path)?;
-
-        writeln!(master_playlist_handler, "#EXTM3U")?;
-
-        for (index, (width, height)) in resolutions.iter().enumerate() {
-            let raw_path = playlist_filenames[index];
-            let bandwidth = (index + 1) * 1_500_000;
-
-            writeln!(
-                master_playlist_handler,
-                "#EXT-X-STREAM-INF:BANDWIDTH={bandwidth},RESOLUTION={width}x{height}"
-            )?;
-            writeln!(master_playlist_handler, "{raw_path}")?;
-            println!("[HlsKit] Master playlist created for {width}x{height}");
-        }
-
-        master_playlist_handler.flush()?;
-    }
-
-    // Reopen the file for reading
-    let mut master_playlist_handler = File::open(&master_playlist_path)?;
-    let mut master_playlist_buffer = Vec::new();
-    master_playlist_handler.read_to_end(&mut master_playlist_buffer)?;
-
-    Ok(master_playlist_buffer)
+pub trait VideoProcessingBackend {
+    fn process_profile(
+        &self,
+        input: String,
+        profile: &HlsVideoProcessingSettings,
+        output_dir: &Path,
+        stream_index: i32,
+        encryption: Option<&VideoProcessorEncryptionSettings>,
+    ) -> impl std::future::Future<Output = Result<HlsVideoResolution, HlsKitError>>;
 }

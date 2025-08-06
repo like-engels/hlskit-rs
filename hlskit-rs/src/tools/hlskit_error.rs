@@ -38,18 +38,83 @@
  * The use of the unmodified library in proprietary software is governed solely by the LGPLv3.
  */
 
+#[cfg(feature = "native-bindings")]
+use ffmpeg_next::Error;
+
 use thiserror::Error;
 
-use crate::tools::ffmpeg_command_builder;
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
+pub enum VideoValidatableErrors {
+    #[error("Invalid video format")]
+    InvalidFormat,
+    #[error("Empty video input")]
+    EmptyVideoInput,
+    #[error("Invalid video input: {error:?}")]
+    InvalidVideoInput { error: String },
+    #[error("File not found")]
+    FileNotFound,
+}
+
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
+pub enum VideoProcessingErrors {
+    #[error("Missing output file path")]
+    MissingOutputPath,
+    #[error("Unsupported video bitrate")]
+    UnsupportedBitrate,
+}
+
+#[derive(Debug, Error)]
+pub enum FfmpegCommandBuilderError {
+    #[error("Configuration Validation Error: {0}")]
+    ConfigurationError(String),
+    #[error("Command Build Error: {0}")]
+    BuildError(String),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("Conversion Error: {0}")]
+    ConversionError(String),
+    #[error("Unexpected Internal State: {0}")]
+    InternalStateError(String),
+    #[error("FFmpeg specific setting error: {0}")]
+    FfmpegSettingError(String),
+}
+
+#[derive(Debug, Error)]
+pub enum GStreamerCommandBuilderError {
+    #[error("Invalid dimensions: {0}")]
+    InvalidDimensions(String),
+    #[error("Invalid bitrate: {0}")]
+    InvalidBitrate(String),
+    #[error("Invalid configuration: {0}")]
+    InvalidConfig(String),
+    #[error("Missing input")]
+    MissingInput,
+    #[error("Missing output")]
+    MissingOutput,
+}
 
 #[derive(Error, Debug)]
 pub enum HlsKitError {
     #[error(transparent)]
     IO(#[from] std::io::Error),
     #[error(transparent)]
-    FFMPEGBUILDER(#[from] ffmpeg_command_builder::FfmpegCommandBuilderError),
+    FFMPEGBUILDER(#[from] FfmpegCommandBuilderError),
+    #[error(transparent)]
+    GSTREAMERBUILDER(#[from] GStreamerCommandBuilderError),
+    #[error(transparent)]
+    VideoProcessingError(#[from] VideoProcessingErrors),
+    #[error(transparent)]
+    VideoValidationError(#[from] VideoValidatableErrors),
     #[error("[HlsKit] Failed to spawn Ffmpeg: {error:?}")]
     FfmpegError { error: String },
+    #[error("[HlsKit] Failed to spawn GStreamer: {error:?}")]
+    GstreamerError { error: String },
+    #[error("Something went wrong while executing the command: {error:?}")]
+    CommandExecutionError { error: String },
     #[error("File {file_path:?} not found")]
     FileNotFound { file_path: String },
+
+    #[cfg(feature = "native-bindings")]
+    #[error(transparent)]
+    FfmpegAPIError(#[from] Error),
 }
